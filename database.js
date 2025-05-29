@@ -13,40 +13,45 @@ const createTablesSQL = `
 CREATE TABLE IF NOT EXISTS participants (
   id SERIAL PRIMARY KEY,
   user_id BIGINT UNIQUE NOT NULL,
-  username VARCHAR(255),
-  first_name VARCHAR(255),
-  last_name VARCHAR(255),
-  participant_number VARCHAR(3) UNIQUE NOT NULL,
-  registered_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  username TEXT,
+  first_name TEXT,
+  last_name TEXT,
+  participant_number INTEGER UNIQUE NOT NULL,
+  registered_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Таблица ротаций (расписание для каждого участника)
+-- Таблица ротаций
 CREATE TABLE IF NOT EXISTS rotations (
   id SERIAL PRIMARY KEY,
-  participant_id INTEGER REFERENCES participants(id) ON DELETE CASCADE,
+  participant_id INTEGER REFERENCES participants(id),
   rotation_number INTEGER NOT NULL,
-  station_id VARCHAR(1) NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(participant_id, rotation_number)
+  station_id TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Таблица текущего состояния мероприятия
+-- Таблица состояния мероприятия
 CREATE TABLE IF NOT EXISTS event_state (
   id SERIAL PRIMARY KEY,
-  current_rotation INTEGER DEFAULT 0,
   event_started BOOLEAN DEFAULT FALSE,
-  event_start_time TIMESTAMP WITH TIME ZONE,
+  event_paused BOOLEAN DEFAULT FALSE,
+  current_rotation INTEGER DEFAULT 1,
   last_rotation_time TIMESTAMP WITH TIME ZONE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  pause_time TIMESTAMP WITH TIME ZONE,
+  total_pause_duration INTEGER DEFAULT 0,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Таблица админов
 CREATE TABLE IF NOT EXISTS admins (
   id SERIAL PRIMARY KEY,
-  username VARCHAR(255) UNIQUE NOT NULL,
-  user_id BIGINT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  username TEXT UNIQUE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Индексы для производительности
+CREATE INDEX IF NOT EXISTS idx_rotations_participant_rotation ON rotations(participant_id, rotation_number);
+CREATE INDEX IF NOT EXISTS idx_participants_user_id ON participants(user_id);
+CREATE INDEX IF NOT EXISTS idx_admins_username ON admins(username);
 `;
 
 // Функции для работы с участниками
@@ -209,101 +214,120 @@ const rotations = {
 const eventState = {
   // Инициализировать состояние
   async init() {
-    try {
-      const { data: existing } = await supabase
+    // Инициализируем состояние, если его нет
+    const { data } = await supabase
+      .from('event_state')
+      .select('*')
+      .limit(1);
+    
+    if (!data || data.length === 0) {
+      await supabase
         .from('event_state')
-        .select('*')
-        .single();
-      
-      if (!existing) {
-        const { error } = await supabase
-          .from('event_state')
-          .insert({
-            current_rotation: 0,
-            event_started: false
-          });
-        
-        if (error) throw error;
-      }
-      return true;
-    } catch (error) {
-      console.error('Error initializing event state:', error);
-      throw error;
+        .insert({
+          event_started: false,
+          event_paused: false,
+          current_rotation: 1,
+          total_pause_duration: 0
+        });
     }
   },
 
   // Получить текущее состояние
   async get() {
-    try {
-      const { data, error } = await supabase
-        .from('event_state')
-        .select('*')
-        .single();
-      
-      if (error && error.code !== 'PGRST116') throw error;
-      return data;
-    } catch (error) {
-      console.error('Error getting event state:', error);
-      throw error;
-    }
+    const { data, error } = await supabase
+      .from('event_state')
+      .select('*')
+      .limit(1)
+      .single();
+    
+    if (error) throw error;
+    return data;
   },
 
   // Запустить мероприятие
   async start() {
-    try {
-      const { error } = await supabase
-        .from('event_state')
-        .update({
-          event_started: true,
-          event_start_time: new Date().toISOString(),
-          current_rotation: 1,
-          last_rotation_time: new Date().toISOString()
-        })
-        .eq('id', 1);
-      
-      if (error) throw error;
-      return true;
-    } catch (error) {
-      console.error('Error starting event:', error);
-      throw error;
-    }
+    const { data, error } = await supabase
+      .from('event_state')
+      .update({
+        event_started: true,
+        event_paused: false,
+        current_rotation: 1,
+        last_rotation_time: new Date().toISOString(),
+        pause_time: null,
+        total_pause_duration: 0,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', 1);
+    
+    if (error) throw error;
+    return data;
   },
 
   // Остановить мероприятие
   async stop() {
-    try {
-      const { error } = await supabase
-        .from('event_state')
-        .update({
-          event_started: false
-        })
-        .eq('id', 1);
-      
-      if (error) throw error;
-      return true;
-    } catch (error) {
-      console.error('Error stopping event:', error);
-      throw error;
-    }
+    const { data, error } = await supabase
+      .from('event_state')
+      .update({
+        event_started: false,
+        event_paused: false,
+        pause_time: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', 1);
+    
+    if (error) throw error;
+    return data;
   },
 
   // Обновить текущую ротацию
   async updateRotation(rotationNumber) {
-    try {
-      const { error } = await supabase
-        .from('event_state')
-        .update({
-          current_rotation: rotationNumber,
-          last_rotation_time: new Date().toISOString()
-        })
-        .eq('id', 1);
-      
-      if (error) throw error;
-      return true;
-    } catch (error) {
-      console.error('Error updating rotation:', error);
-      throw error;
-    }
+    const { data, error } = await supabase
+      .from('event_state')
+      .update({
+        current_rotation: rotationNumber,
+        last_rotation_time: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', 1);
+    
+    if (error) throw error;
+    return data;
+  },
+
+  // Пауза
+  async pause() {
+    const { data, error } = await supabase
+      .from('event_state')
+      .update({
+        event_paused: true,
+        pause_time: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', 1);
+    
+    if (error) throw error;
+    return data;
+  },
+
+  // Возобновить
+  async resume() {
+    // Сначала получаем текущее состояние для расчета времени паузы
+    const currentState = await this.get();
+    const pauseDuration = currentState.pause_time ? 
+      Math.floor((new Date() - new Date(currentState.pause_time)) / 1000) : 0;
+    
+    const { data, error } = await supabase
+      .from('event_state')
+      .update({
+        event_paused: false,
+        pause_time: null,
+        total_pause_duration: (currentState.total_pause_duration || 0) + pauseDuration,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', 1);
+    
+    if (error) throw error;
+    return data;
   }
 };
 

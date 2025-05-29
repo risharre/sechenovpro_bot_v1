@@ -23,6 +23,11 @@ class EventScheduler {
       return;
     }
 
+    if (state.event_paused) {
+      console.log('Event is paused, scheduler will not run');
+      return;
+    }
+
     // Запускаем задачи по расписанию
     this.scheduleRotations();
     this.scheduleWarnings();
@@ -41,6 +46,40 @@ class EventScheduler {
       this.warningJob.stop();
       this.warningJob = null;
     }
+  }
+
+  // Приостановить планировщик (без потери прогресса)
+  pause() {
+    console.log('Pausing event scheduler...');
+    
+    if (this.rotationJob) {
+      this.rotationJob.stop();
+    }
+    
+    if (this.warningJob) {
+      this.warningJob.stop();
+    }
+  }
+
+  // Возобновить планировщик
+  async resume() {
+    console.log('Resuming event scheduler...');
+    
+    // Проверяем состояние
+    const state = await eventState.get();
+    if (!state || !state.event_started) {
+      console.log('Cannot resume: event not started');
+      return;
+    }
+
+    if (state.event_paused) {
+      console.log('Cannot resume: event still paused in database');
+      return;
+    }
+
+    // Перезапускаем планировщик
+    this.scheduleRotations();
+    this.scheduleWarnings();
   }
 
   // Планировать ротации каждые CYCLE_TIME минут
@@ -82,8 +121,12 @@ class EventScheduler {
   // Обработать ротацию
   async handleRotation() {
     const state = await eventState.get();
-    if (!state || !state.event_started) {
-      this.stop();
+    if (!state || !state.event_started || state.event_paused) {
+      if (state.event_paused) {
+        console.log('Rotation skipped: event is paused');
+      } else {
+        this.stop();
+      }
       return;
     }
 
@@ -106,7 +149,7 @@ class EventScheduler {
   // Обработать предупреждение о переходе
   async handleWarning() {
     const state = await eventState.get();
-    if (!state || !state.event_started) {
+    if (!state || !state.event_started || state.event_paused) {
       return;
     }
 

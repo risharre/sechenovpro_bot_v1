@@ -69,7 +69,7 @@ bot.command('start', async (ctx) => {
       
       // Приветственное сообщение для нового участника
       let welcomeMessage = `🎉 *Добро пожаловать на Sechenov Pro Network!*\n\n`;
-      welcomeMessage += `${escapeMarkdown(networkingDescription)}\n\n`;
+      welcomeMessage += `${networkingDescription}\n\n`;
       welcomeMessage += `✅ Вы успешно зарегистрированы!\n`;
       welcomeMessage += `📋 Ваш номер участника: *${participant.participant_number}*\n\n`;
       welcomeMessage += `📝 Заполните форму с дополнительной информацией:\n`;
@@ -102,9 +102,10 @@ bot.command('start', async (ctx) => {
 
     // Если это админ, показываем админское меню
     if (isAdmin) {
+      const currentState = await eventState.get();
       await ctx.replyWithMarkdown(
         `👨‍💼 *Админ-панель*\n\nВы имеете доступ к управлению мероприятием.`,
-        { reply_markup: createAdminMenu() }
+        { reply_markup: createAdminMenu(currentState) }
       );
     }
 
@@ -186,11 +187,80 @@ bot.command('stop_event', async (ctx) => {
     await eventState.stop();
     scheduler.stop();
 
-    await ctx.reply('⏹️ Мероприятие остановлено.');
+    await ctx.reply('⏹️ Мероприятие остановлено.\n\n⚠️ При перезапуске участники получат новые маршруты.');
 
   } catch (error) {
     console.error('Error in /stop_event command:', error);
     await ctx.reply('❌ Произошла ошибка при остановке мероприятия.');
+  }
+});
+
+// Команда /pause_event (для админов)
+bot.command('pause_event', async (ctx) => {
+  try {
+    const username = ctx.from.username || '';
+    const isAdmin = await admins.isAdmin(username);
+
+    if (!isAdmin) {
+      await ctx.reply('❌ У вас нет прав для выполнения этой команды.');
+      return;
+    }
+
+    const state = await eventState.get();
+    if (!state || !state.event_started) {
+      await ctx.reply('⚠️ Мероприятие не запущено!');
+      return;
+    }
+
+    if (state.event_paused) {
+      await ctx.reply('⚠️ Мероприятие уже приостановлено!');
+      return;
+    }
+
+    // Приостанавливаем мероприятие
+    await eventState.pause();
+    scheduler.pause();
+
+    await ctx.reply('⏸️ Мероприятие приостановлено.\n\n💡 Прогресс участников сохранен. Используйте /resume_event для продолжения.');
+
+  } catch (error) {
+    console.error('Error in /pause_event command:', error);
+    await ctx.reply('❌ Произошла ошибка при приостановке мероприятия.');
+  }
+});
+
+// Команда /resume_event (для админов)
+bot.command('resume_event', async (ctx) => {
+  try {
+    const username = ctx.from.username || '';
+    const isAdmin = await admins.isAdmin(username);
+
+    if (!isAdmin) {
+      await ctx.reply('❌ У вас нет прав для выполнения этой команды.');
+      return;
+    }
+
+    const state = await eventState.get();
+    if (!state || !state.event_started) {
+      await ctx.reply('⚠️ Мероприятие не запущено!');
+      return;
+    }
+
+    if (!state.event_paused) {
+      await ctx.reply('⚠️ Мероприятие не приостановлено!');
+      return;
+    }
+
+    // Возобновляем мероприятие
+    await eventState.resume();
+    await scheduler.resume();
+
+    const pauseDuration = Math.floor((state.total_pause_duration || 0) / 60);
+    await ctx.reply(`▶️ Мероприятие возобновлено!\n\n⏱️ Общее время паузы: ${pauseDuration} мин.\n🔄 Автоматическая ротация продолжается.`);
+
+  } catch (error) {
+    console.error('Error in /resume_event command:', error);
+    await ctx.reply('❌ Произошла ошибка при возобновлении мероприятия.');
   }
 });
 
@@ -258,6 +328,11 @@ bot.on('callback_query', async (ctx) => {
           break;
         }
 
+        if (state.event_paused) {
+          await ctx.reply('⏸️ Мероприятие приостановлено.\n\nОжидайте возобновления от организаторов.');
+          break;
+        }
+
         const currentStationId = await rotations.getCurrentStation(participant.id, state.current_rotation);
         if (currentStationId) {
           const station = getStationInfo(currentStationId);
@@ -275,6 +350,11 @@ bot.on('callback_query', async (ctx) => {
           break;
         }
 
+        if (state.event_paused) {
+          await ctx.reply('⏸️ Мероприятие приостановлено.\n\nИнформация о следующей станции будет доступна после возобновления.');
+          break;
+        }
+
         const nextRotation = state.current_rotation + 1;
         if (nextRotation > stations.length) {
           await ctx.reply('🏁 Это последняя станция! Мероприятие скоро завершится.');
@@ -285,8 +365,8 @@ bot.on('callback_query', async (ctx) => {
         if (nextStationId) {
           const station = getStationInfo(nextStationId);
           let message = `⏭️ *Следующая станция*\n\n`;
-          message += `${station.emoji} *${escapeMarkdown(station.name)}*\n\n`;
-          message += `_${escapeMarkdown(station.shortTitle)}_`;
+          message += `${station.emoji} *${station.name}*\n\n`;
+          message += `_${station.shortTitle}_`;
           await ctx.replyWithMarkdown(message);
         }
         break;
@@ -322,28 +402,169 @@ bot.on('callback_query', async (ctx) => {
       // Админские действия
       case 'admin_start_event':
         const isAdminStart = await admins.isAdmin(username);
-        if (isAdminStart) {
-          ctx.callbackQuery.message.text = '/start_event';
-          ctx.callbackQuery.message.from = ctx.from;
-          await bot.handleUpdate({ message: ctx.callbackQuery.message });
+        if (!isAdminStart) {
+          await ctx.reply('❌ У вас нет прав для выполнения этой команды.');
+          break;
+        }
+
+        try {
+          // Проверяем текущее состояние
+          const currentState = await eventState.get();
+          if (currentState && currentState.event_started) {
+            await ctx.reply('⚠️ Мероприятие уже запущено!');
+            break;
+          }
+
+          // Получаем всех участников
+          const allParticipants = await participants.getAll();
+          if (allParticipants.length === 0) {
+            await ctx.reply('❌ Нет зарегистрированных участников!');
+            break;
+          }
+
+          await ctx.reply(`🚀 Запускаю мероприятие...\n\n📊 Участников: ${allParticipants.length}`);
+
+          // Очищаем старые ротации
+          await rotations.deleteAll();
+
+          // Генерируем распределение
+          const distributions = distributeParticipants(allParticipants.length);
+
+          // Сохраняем ротации для каждого участника
+          for (let i = 0; i < allParticipants.length; i++) {
+            const participant = allParticipants[i];
+            const stationSequence = distributions[i];
+            await rotations.createForParticipant(participant.id, stationSequence);
+          }
+
+          // Запускаем мероприятие
+          await eventState.start();
+
+          // Отправляем первые уведомления
+          await scheduler.sendInitialNotifications();
+
+          // Запускаем планировщик
+          await scheduler.start();
+
+          await ctx.reply(`✅ Мероприятие успешно запущено!\n\n🔄 Автоматическая ротация каждые ${CYCLE_TIME} минут.`);
+        } catch (error) {
+          console.error('Error in admin_start_event callback:', error);
+          await ctx.reply('❌ Произошла ошибка при запуске мероприятия.');
+        }
+        break;
+
+      case 'admin_pause_event':
+        const isAdminPause = await admins.isAdmin(username);
+        if (!isAdminPause) {
+          await ctx.reply('❌ У вас нет прав для выполнения этой команды.');
+          break;
+        }
+
+        try {
+          const currentState = await eventState.get();
+          if (!currentState || !currentState.event_started) {
+            await ctx.reply('⚠️ Мероприятие не запущено!');
+            break;
+          }
+
+          if (currentState.event_paused) {
+            await ctx.reply('⚠️ Мероприятие уже приостановлено!');
+            break;
+          }
+
+          // Приостанавливаем мероприятие
+          await eventState.pause();
+          scheduler.pause();
+
+          await ctx.reply('⏸️ Мероприятие приостановлено.\n\n💡 Прогресс участников сохранен. Используйте "Возобновить" для продолжения.');
+        } catch (error) {
+          console.error('Error in admin_pause_event callback:', error);
+          await ctx.reply('❌ Произошла ошибка при приостановке мероприятия.');
+        }
+        break;
+
+      case 'admin_resume_event':
+        const isAdminResume = await admins.isAdmin(username);
+        if (!isAdminResume) {
+          await ctx.reply('❌ У вас нет прав для выполнения этой команды.');
+          break;
+        }
+
+        try {
+          const currentState = await eventState.get();
+          if (!currentState || !currentState.event_started) {
+            await ctx.reply('⚠️ Мероприятие не запущено!');
+            break;
+          }
+
+          if (!currentState.event_paused) {
+            await ctx.reply('⚠️ Мероприятие не приостановлено!');
+            break;
+          }
+
+          // Возобновляем мероприятие
+          await eventState.resume();
+          await scheduler.resume();
+
+          const pauseDuration = Math.floor((currentState.total_pause_duration || 0) / 60);
+          await ctx.reply(`▶️ Мероприятие возобновлено!\n\n⏱️ Общее время паузы: ${pauseDuration} мин.\n🔄 Автоматическая ротация продолжается.`);
+        } catch (error) {
+          console.error('Error in admin_resume_event callback:', error);
+          await ctx.reply('❌ Произошла ошибка при возобновлении мероприятия.');
         }
         break;
 
       case 'admin_stop_event':
         const isAdminStop = await admins.isAdmin(username);
-        if (isAdminStop) {
-          ctx.callbackQuery.message.text = '/stop_event';
-          ctx.callbackQuery.message.from = ctx.from;
-          await bot.handleUpdate({ message: ctx.callbackQuery.message });
+        if (!isAdminStop) {
+          await ctx.reply('❌ У вас нет прав для выполнения этой команды.');
+          break;
+        }
+
+        try {
+          // Останавливаем мероприятие
+          await eventState.stop();
+          scheduler.stop();
+          await ctx.reply('⏹️ Мероприятие остановлено.\n\n⚠️ При перезапуске участники получат новые маршруты.');
+        } catch (error) {
+          console.error('Error in admin_stop_event callback:', error);
+          await ctx.reply('❌ Произошла ошибка при остановке мероприятия.');
         }
         break;
 
       case 'admin_status':
         const isAdminStatus = await admins.isAdmin(username);
-        if (isAdminStatus) {
-          ctx.callbackQuery.message.text = '/status';
-          ctx.callbackQuery.message.from = ctx.from;
-          await bot.handleUpdate({ message: ctx.callbackQuery.message });
+        if (!isAdminStatus) {
+          await ctx.reply('❌ У вас нет прав для выполнения этой команды.');
+          break;
+        }
+
+        try {
+          const currentState = await eventState.get();
+          const participantCount = await participants.getCount();
+
+          let statusMessage = `📊 *Статус мероприятия*\n\n`;
+          statusMessage += `👥 Участников: ${participantCount}\n`;
+          
+          if (currentState && currentState.event_started) {
+            if (currentState.event_paused) {
+              statusMessage += `⏸️ Статус: Приостановлено\n`;
+              const pauseDuration = Math.floor((currentState.total_pause_duration || 0) / 60);
+              statusMessage += `⏱️ Время паузы: ${pauseDuration} мин.\n`;
+            } else {
+              statusMessage += `✅ Статус: Активно\n`;
+              const timeRemaining = getTimeUntilNextRotation(currentState.last_rotation_time, CYCLE_TIME);
+              statusMessage += `⏱️ До следующей ротации: ${timeRemaining.formatted}\n`;
+            }
+            statusMessage += `🔄 Текущая ротация: ${currentState.current_rotation} из ${stations.length}\n`;
+          } else {
+            statusMessage += `⏸️ Статус: Не запущено`;
+          }
+
+          await ctx.replyWithMarkdown(statusMessage);
+        } catch (error) {
+          console.error('Error in admin_status callback:', error);
+          await ctx.reply('❌ Произошла ошибка при получении статуса.');
         }
         break;
 

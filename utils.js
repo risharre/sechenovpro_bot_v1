@@ -133,15 +133,30 @@ function createParticipantMenu() {
 }
 
 // Создание inline клавиатуры для админского меню
-function createAdminMenu() {
-  return {
-    inline_keyboard: [
-      [{ text: '🚀 Запустить мероприятие', callback_data: 'admin_start_event' }],
-      [{ text: '⏹️ Остановить мероприятие', callback_data: 'admin_stop_event' }],
-      [{ text: '📊 Статус мероприятия', callback_data: 'admin_status' }],
-      [{ text: '👥 Список участников', callback_data: 'admin_participants' }]
-    ]
-  };
+function createAdminMenu(eventState = null) {
+  const keyboard = [];
+  
+  if (!eventState || !eventState.event_started) {
+    // Мероприятие не запущено
+    keyboard.push([{ text: '🚀 Запустить мероприятие', callback_data: 'admin_start_event' }]);
+  } else {
+    // Мероприятие запущено
+    if (eventState.event_paused) {
+      // На паузе
+      keyboard.push([{ text: '▶️ Возобновить мероприятие', callback_data: 'admin_resume_event' }]);
+      keyboard.push([{ text: '⏹️ Остановить мероприятие', callback_data: 'admin_stop_event' }]);
+    } else {
+      // Активно
+      keyboard.push([{ text: '⏸️ Приостановить мероприятие', callback_data: 'admin_pause_event' }]);
+      keyboard.push([{ text: '⏹️ Остановить мероприятие', callback_data: 'admin_stop_event' }]);
+    }
+  }
+  
+  // Общие кнопки
+  keyboard.push([{ text: '📊 Статус мероприятия', callback_data: 'admin_status' }]);
+  keyboard.push([{ text: '👥 Список участников', callback_data: 'admin_participants' }]);
+  
+  return { inline_keyboard: keyboard };
 }
 
 // Получить информацию о станции по ID
@@ -174,10 +189,10 @@ function escapeMarkdown(text) {
 
 // Создать сообщение о текущей станции
 function createStationMessage(station, rotationNumber, totalRotations, timeRemaining = null) {
-  let message = `${station.emoji} *Станция ${station.id}: ${escapeMarkdown(station.name)}*\n\n`;
+  let message = `${station.emoji} *Станция ${station.id}: ${station.name}*\n\n`;
   message += `📍 Ротация ${rotationNumber} из ${totalRotations}\n\n`;
-  message += `❓ *${escapeMarkdown(station.shortTitle)}*\n\n`;
-  message += `${escapeMarkdown(station.description)}\n`;
+  message += `❓ *${station.shortTitle}*\n\n`;
+  message += `${station.description}\n`;
   
   if (timeRemaining) {
     message += `\n⏱️ До перехода: ${timeRemaining.formatted}`;
@@ -204,7 +219,7 @@ function createScheduleMessage(participantNumber, rotations, currentRotation) {
       message += `⏳ `;
     }
     
-    message += `${rotationNum}. ${station.emoji} ${escapeMarkdown(station.name)}`;
+    message += `${rotationNum}. ${station.emoji} ${station.name}`;
     
     if (isCurrent) {
       message += ` *(сейчас)*`;
