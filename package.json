@@ -1,18 +1,30 @@
 {
-  "name": "sechenovpro-bot",
+  "name": "sechenovpro_bot_v1",
   "version": "1.0.0",
-  "description": "Telegram bot for Sechenov Pro Network Event management",
+  "description": "Telegram bot for Sechenov Pro Network Event with automatic rotation system",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
-    "dev": "nodemon bot.js"
+    "dev": "nodemon bot.js",
+    "test": "node test_mixing.js"
   },
-  "keywords": ["telegram", "bot", "event", "management"],
-  "author": "",
-  "license": "ISC",
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "networking",
+    "event",
+    "rotation",
+    "supabase"
+  ],
+  "author": "Sechenov Pro Network",
+  "license": "MIT",
   "dependencies": {
-    "telegraf": "^4.15.3",
-    "@supabase/supabase-js": "^2.39.3",
+    "telegraf": "^4.15.6",
+    "@supabase/supabase-js": "^2.38.4",
     "dotenv": "^16.3.1",
     "node-cron": "^3.0.3"
   },
