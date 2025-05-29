@@ -1,6 +1,34 @@
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
+// Проверяем наличие необходимых переменных окружения
+const requiredEnvVars = ['SUPABASE_URL', 'SUPABASE_KEY', 'BOT_TOKEN'];
+const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingVars.length > 0) {
+  console.error('❌ Missing required environment variables:', missingVars.join(', '));
+  console.error('\n🔧 Please set the following environment variables:');
+  missingVars.forEach(varName => {
+    console.error(`   ${varName}=your_${varName.toLowerCase()}_value`);
+  });
+  
+  if (process.env.NODE_ENV === 'production') {
+    console.error('\n🚀 For Railway deployment, set these in your Railway dashboard:');
+    console.error('   1. Go to your Railway project');
+    console.error('   2. Click on Variables tab');
+    console.error('   3. Add each variable with its value');
+  } else {
+    console.error('\n💻 For local development, create a .env file with these variables');
+  }
+  
+  throw new Error(`Missing environment variables: ${missingVars.join(', ')}`);
+}
+
+console.log('✅ Environment variables validated');
+console.log(`   SUPABASE_URL: ${process.env.SUPABASE_URL ? 'Set' : 'Missing'}`);
+console.log(`   SUPABASE_KEY: ${process.env.SUPABASE_KEY ? 'Set' : 'Missing'}`);
+console.log(`   BOT_TOKEN: ${process.env.BOT_TOKEN ? 'Set' : 'Missing'}`);
+
 // Инициализация Supabase клиента
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -53,6 +81,61 @@ CREATE INDEX IF NOT EXISTS idx_rotations_participant_rotation ON rotations(parti
 CREATE INDEX IF NOT EXISTS idx_participants_user_id ON participants(user_id);
 CREATE INDEX IF NOT EXISTS idx_admins_username ON admins(username);
 `;
+
+// Проверка подключения к базе данных
+const testConnection = async () => {
+  try {
+    console.log('Testing database connection...');
+    
+    // Тестируем простой запрос
+    const { data, error } = await supabase
+      .from('event_state')
+      .select('*')
+      .limit(1);
+    
+    if (error) {
+      console.error('Database connection failed:', error);
+      throw new Error(`Database error: ${error.message}`);
+    }
+    
+    console.log('✅ Database connection successful');
+    return true;
+  } catch (error) {
+    console.error('❌ Database connection failed:', error.message);
+    throw error;
+  }
+};
+
+// Проверка схемы базы данных
+const validateSchema = async () => {
+  try {
+    console.log('Validating database schema...');
+    
+    // Проверяем наличие нужных столбцов
+    const { data, error } = await supabase
+      .from('event_state')
+      .select('event_started, event_paused, current_rotation, total_pause_duration')
+      .limit(1);
+    
+    if (error) {
+      if (error.message.includes('event_paused')) {
+        console.error('❌ Missing columns in event_state table!');
+        console.error('Please run the SQL update script in Supabase:');
+        console.error('ALTER TABLE event_state ADD COLUMN event_paused BOOLEAN DEFAULT FALSE;');
+        console.error('ALTER TABLE event_state ADD COLUMN pause_time TIMESTAMP WITH TIME ZONE;');
+        console.error('ALTER TABLE event_state ADD COLUMN total_pause_duration INTEGER DEFAULT 0;');
+        throw new Error('Database schema is outdated. Please update event_state table.');
+      }
+      throw error;
+    }
+    
+    console.log('✅ Database schema is valid');
+    return true;
+  } catch (error) {
+    console.error('❌ Schema validation failed:', error.message);
+    throw error;
+  }
+};
 
 // Функции для работы с участниками
 const participants = {
@@ -377,6 +460,8 @@ const admins = {
 
 module.exports = {
   supabase,
+  testConnection,
+  validateSchema,
   participants,
   rotations,
   eventState,

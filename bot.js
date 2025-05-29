@@ -8,6 +8,8 @@ const {
   rotations, 
   eventState, 
   admins,
+  testConnection,
+  validateSchema,
   createTablesSQL 
 } = require('./database');
 
@@ -41,12 +43,35 @@ bot.use(session());
 // Инициализация базы данных
 async function initDatabase() {
   try {
+    console.log('🔄 Initializing database...');
+    
+    // Проверяем подключение
+    await testConnection();
+    
+    // Проверяем схему
+    await validateSchema();
+    
+    // Инициализируем состояние
     await eventState.init();
-    console.log('Database initialized');
-    console.log('\nSQL для создания таблиц в Supabase:');
-    console.log(createTablesSQL);
+    
+    console.log('✅ Database initialized successfully');
+    
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('\nSQL для создания таблиц в Supabase:');
+      console.log(createTablesSQL);
+    }
   } catch (error) {
-    console.error('Error initializing database:', error);
+    console.error('❌ Database initialization failed:', error);
+    
+    if (process.env.NODE_ENV === 'production') {
+      // В продакшене не запускаем бота если база недоступна
+      throw error;
+    } else {
+      // В разработке показываем инструкции
+      console.log('\n🛠️ To fix this, run the following SQL in Supabase:');
+      console.log(createTablesSQL);
+      throw error;
+    }
   }
 }
 
@@ -651,9 +676,65 @@ bot.on('callback_query', async (ctx) => {
 // Обработка ошибок
 bot.catch((err, ctx) => {
   console.error(`Error for ${ctx.updateType}:`, err);
+  
+  // Не крашимся при ошибках базы данных
+  if (err.code && err.code.startsWith('PGRST')) {
+    console.error('Supabase error:', err.message);
+    ctx.reply('⚠️ Временная проблема с базой данных. Попробуйте позже.').catch(() => {});
+    return;
+  }
+  
+  // Логируем все остальные ошибки но не крашимся
+  console.error('Bot error details:', {
+    error: err.message,
+    stack: err.stack,
+    update: ctx.update
+  });
 });
 
-// Запуск бота
+// Улучшенная обработка некритичных ошибок
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Не выходим из процесса, только логируем
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  // В продакшене можем попытаться graceful shutdown
+  if (process.env.NODE_ENV === 'production') {
+    console.log('Attempting graceful shutdown...');
+    scheduler.stop();
+    bot.stop('Uncaught Exception');
+    process.exit(1);
+  }
+});
+
+// Graceful shutdown signals  
+const gracefulShutdown = (signal) => {
+  console.log(`Received ${signal}. Starting graceful shutdown...`);
+  
+  scheduler.stop();
+  
+  bot.stop(signal).then(() => {
+    console.log('Bot stopped gracefully');
+    process.exit(0);
+  }).catch((error) => {
+    console.error('Error during shutdown:', error);
+    process.exit(1);
+  });
+  
+  // Force exit after 10 seconds
+  setTimeout(() => {
+    console.log('Force exiting...');
+    process.exit(1);
+  }, 10000);
+};
+
+// Graceful stop
+process.once('SIGINT', () => gracefulShutdown('SIGINT'));
+process.once('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
+// Запускаем бота
 async function start() {
   try {
     await initDatabase();
@@ -672,17 +753,6 @@ async function start() {
     process.exit(1);
   }
 }
-
-// Graceful stop
-process.once('SIGINT', () => {
-  scheduler.stop();
-  bot.stop('SIGINT');
-});
-
-process.once('SIGTERM', () => {
-  scheduler.stop();
-  bot.stop('SIGTERM');
-});
 
 // Запускаем бота
 start(); 

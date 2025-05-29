@@ -109,4 +109,134 @@ railway status
 - ✅ Автоматические ротации каждые 8 минут
 - ✅ Админская панель с полным контролем
 
-**Бот готов для реального мероприятия на 150 участников! 🎉** 
+**Бот готов для реального мероприятия на 150 участников! 🎉**
+
+## Quick Fix for Current Error
+
+**Error:** `supabaseUrl is required.`
+
+**Solution:** Set environment variables in Railway dashboard:
+
+1. Go to your Railway project: https://railway.app/dashboard
+2. Click on your project
+3. Go to **Variables** tab
+4. Add these variables one by one:
+
+```
+BOT_TOKEN=your_telegram_bot_token
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your_supabase_anon_key
+ADMIN_USERNAMES=your_telegram_username
+NODE_ENV=production
+CV_FORM_URL=https://forms.yandex.ru/cloud/67d6fd5090fa7be3dc213e5f/
+```
+
+4. Click **Deploy** after adding all variables
+
+## Getting Your Values
+
+### BOT_TOKEN
+- Go to [@BotFather](https://t.me/BotFather) on Telegram
+- Use `/mybots` → Select your bot → **API Token**
+
+### SUPABASE_URL and SUPABASE_KEY
+- Go to [Supabase Dashboard](https://supabase.com/dashboard)
+- Select your project
+- Go to **Settings** → **API**
+- Copy **Project URL** (SUPABASE_URL)
+- Copy **anon public** key (SUPABASE_KEY)
+
+### ADMIN_USERNAMES
+- Your Telegram username (without @)
+- Multiple admins: `username1,username2,username3`
+
+## Complete Deployment Steps
+
+### 1. Prepare Repository
+```bash
+git add .
+git commit -m "Production deployment ready"
+git push origin main
+```
+
+### 2. Create Railway Project
+1. Go to [Railway](https://railway.app)
+2. Click **Deploy from GitHub repo**
+3. Select your repository
+4. Railway will auto-deploy
+
+### 3. Set Environment Variables
+In Railway dashboard → Variables tab:
+- `BOT_TOKEN`: Your Telegram bot token
+- `SUPABASE_URL`: Your Supabase project URL
+- `SUPABASE_KEY`: Your Supabase anon key
+- `ADMIN_USERNAMES`: Your Telegram username
+- `NODE_ENV`: `production`
+- `CV_FORM_URL`: Form URL (optional)
+
+### 4. Database Setup (Critical!)
+**Before first deployment**, run this SQL in Supabase:
+
+```sql
+-- Add missing columns to event_state table
+ALTER TABLE event_state ADD COLUMN IF NOT EXISTS event_paused BOOLEAN DEFAULT FALSE;
+ALTER TABLE event_state ADD COLUMN IF NOT EXISTS pause_time TIMESTAMP WITH TIME ZONE;
+ALTER TABLE event_state ADD COLUMN IF NOT EXISTS total_pause_duration INTEGER DEFAULT 0;
+ALTER TABLE event_state ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+```
+
+### 5. Verify Deployment
+1. Check Railway logs for successful startup
+2. Test bot with `/start` command
+3. Test admin commands if you're an admin
+
+## Production Features
+
+✅ **Auto-restart** on crashes (up to 10 times)  
+✅ **Graceful shutdown** handling  
+✅ **Health monitoring** endpoint  
+✅ **Error logging** without crashes  
+✅ **Database connection** validation  
+✅ **Schema validation** on startup  
+
+## Monitoring
+
+- **Health endpoint**: `https://your-app.railway.app/health`
+- **Railway logs**: Available in dashboard
+- **Bot status**: Use `/status` command as admin
+
+## Troubleshooting
+
+### Bot not responding
+1. Check Railway logs for errors
+2. Verify all environment variables are set
+3. Test database connection in Supabase
+
+### Database errors
+1. Ensure you've run the UPDATE_DATABASE.sql script
+2. Check Supabase project is active
+3. Verify SUPABASE_URL and SUPABASE_KEY
+
+### Memory issues
+- Railway free tier: 512MB RAM limit
+- Bot optimized for 150+ participants
+- Monitor memory usage in logs
+
+## Cost Estimate
+
+**Railway Free Tier:**
+- $0/month for hobby projects
+- 512MB RAM, 1GB disk
+- Sufficient for networking events
+
+**Paid Plan (if needed):**
+- $5/month for more resources
+- 8GB RAM, faster deployment
+
+## Support
+
+For deployment issues:
+1. Check Railway dashboard logs
+2. Verify environment variables
+3. Test database connectivity
+4. Review error messages in bot logs 

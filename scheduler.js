@@ -92,6 +92,10 @@ class EventScheduler {
         await this.handleRotation();
       } catch (error) {
         console.error('Error in rotation handler:', error);
+        // Не крашим весь процесс, только логируем ошибку
+        if (process.env.NODE_ENV === 'production') {
+          console.log('Rotation handler error in production, continuing...');
+        }
       }
     });
 
@@ -111,6 +115,10 @@ class EventScheduler {
           await this.handleWarning();
         } catch (error) {
           console.error('Error in warning handler:', error);
+          // Не крашим весь процесс, только логируем ошибку
+          if (process.env.NODE_ENV === 'production') {
+            console.log('Warning handler error in production, continuing...');
+          }
         }
       });
       
