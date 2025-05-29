@@ -10,90 +10,47 @@ function shuffle(array) {
   return result;
 }
 
-// Алгоритм равномерного распределения участников по станциям
+// Алгоритм максимального смешивания участников по станциям
 function distributeParticipants(participantCount) {
   const stationIds = stations.map(s => s.id); // ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I']
   const distributions = [];
   
-  // Для каждого участника создаем случайную последовательность прохождения станций
-  for (let i = 0; i < participantCount; i++) {
-    const participantPath = shuffle(stationIds);
-    distributions.push(participantPath);
-  }
+  // Создаем массив всех участников (номера от 0 до participantCount-1)
+  const allParticipants = Array.from({ length: participantCount }, (_, i) => i);
   
-  // Проверяем равномерность распределения для каждой ротации
-  // и корректируем при необходимости
+  // Для каждой ротации генерируем полностью случайное распределение
   for (let rotation = 0; rotation < stationIds.length; rotation++) {
-    const stationCounts = {};
-    stationIds.forEach(id => stationCounts[id] = 0);
+    // Перемешиваем участников случайным образом
+    const shuffledParticipants = shuffle([...allParticipants]);
     
-    // Подсчитываем количество участников на каждой станции для текущей ротации
-    distributions.forEach(path => {
-      stationCounts[path[rotation]]++;
-    });
+    // Вычисляем, сколько людей должно быть на каждой станции
+    const baseParticipantsPerStation = Math.floor(participantCount / stationIds.length);
+    const extraParticipants = participantCount % stationIds.length;
     
-    // Целевое количество участников на станцию
-    const targetPerStation = Math.floor(participantCount / stationIds.length);
-    const remainder = participantCount % stationIds.length;
+    let participantIndex = 0;
     
-    // Корректируем распределение, если есть дисбаланс
-    let iterations = 0;
-    const maxIterations = 1000;
-    
-    while (iterations < maxIterations) {
-      let needsAdjustment = false;
+    // Распределяем участников по станциям для этой ротации
+    for (let stationIndex = 0; stationIndex < stationIds.length; stationIndex++) {
+      const stationId = stationIds[stationIndex];
       
-      // Проверяем, нужна ли корректировка
-      for (const stationId of stationIds) {
-        const expectedCount = targetPerStation + (remainder > 0 ? 1 : 0);
-        if (Math.abs(stationCounts[stationId] - targetPerStation) > 1) {
-          needsAdjustment = true;
-          break;
+      // Определяем количество участников для этой станции
+      const participantsForThisStation = baseParticipantsPerStation + 
+        (stationIndex < extraParticipants ? 1 : 0);
+      
+      // Назначаем участников на эту станцию
+      for (let i = 0; i < participantsForThisStation; i++) {
+        const participantNumber = shuffledParticipants[participantIndex];
+        
+        // Если это первая ротация, создаем массив для этого участника
+        if (rotation === 0) {
+          distributions[participantNumber] = [];
         }
+        
+        // Добавляем станцию в маршрут участника
+        distributions[participantNumber][rotation] = stationId;
+        
+        participantIndex++;
       }
-      
-      if (!needsAdjustment) break;
-      
-      // Находим перегруженные и недогруженные станции
-      const overloaded = [];
-      const underloaded = [];
-      
-      for (const stationId of stationIds) {
-        if (stationCounts[stationId] > targetPerStation + 1) {
-          overloaded.push(stationId);
-        } else if (stationCounts[stationId] < targetPerStation) {
-          underloaded.push(stationId);
-        }
-      }
-      
-      if (overloaded.length === 0 || underloaded.length === 0) break;
-      
-      // Меняем местами участников
-      let swapped = false;
-      for (let i = 0; i < distributions.length && !swapped; i++) {
-        if (overloaded.includes(distributions[i][rotation])) {
-          for (let j = i + 1; j < distributions.length; j++) {
-            if (underloaded.includes(distributions[j][rotation])) {
-              // Проверяем, что обмен не нарушит уникальность маршрута
-              const canSwap = distributions[i][rotation] !== distributions[j][rotation];
-              if (canSwap) {
-                // Меняем местами станции в текущей ротации
-                [distributions[i][rotation], distributions[j][rotation]] = 
-                [distributions[j][rotation], distributions[i][rotation]];
-                
-                // Обновляем счетчики
-                stationCounts[distributions[i][rotation]]++;
-                stationCounts[distributions[j][rotation]]--;
-                swapped = true;
-                break;
-              }
-            }
-          }
-        }
-      }
-      
-      if (!swapped) break;
-      iterations++;
     }
   }
   
@@ -231,9 +188,59 @@ function createScheduleMessage(participantNumber, rotations, currentRotation) {
   return message;
 }
 
+// Анализ качества смешивания участников
+function analyzeParticipantMixing(distributions) {
+  const participantCount = distributions.length;
+  const rotationCount = distributions[0].length;
+  
+  // Подсчитываем, сколько раз каждая пара участников встречается вместе
+  const meetingCounts = {};
+  
+  for (let rotation = 0; rotation < rotationCount; rotation++) {
+    // Группируем участников по станциям для этой ротации
+    const stationGroups = {};
+    
+    for (let participant = 0; participant < participantCount; participant++) {
+      const station = distributions[participant][rotation];
+      if (!stationGroups[station]) {
+        stationGroups[station] = [];
+      }
+      stationGroups[station].push(participant);
+    }
+    
+    // Для каждой станции подсчитываем встречи участников
+    Object.values(stationGroups).forEach(group => {
+      for (let i = 0; i < group.length; i++) {
+        for (let j = i + 1; j < group.length; j++) {
+          const pair = `${Math.min(group[i], group[j])}-${Math.max(group[i], group[j])}`;
+          meetingCounts[pair] = (meetingCounts[pair] || 0) + 1;
+        }
+      }
+    });
+  }
+  
+  // Анализируем результаты
+  const meetingFrequencies = Object.values(meetingCounts);
+  const maxMeetings = meetingFrequencies.length > 0 ? Math.max(...meetingFrequencies) : 0;
+  const avgMeetings = meetingFrequencies.length > 0 ? 
+    meetingFrequencies.reduce((a, b) => a + b, 0) / meetingFrequencies.length : 0;
+  const totalPossiblePairs = (participantCount * (participantCount - 1)) / 2;
+  const pairsWhoNeverMet = totalPossiblePairs - meetingFrequencies.length;
+  
+  return {
+    totalPairs: totalPossiblePairs,
+    pairsWhoMet: meetingFrequencies.length,
+    pairsWhoNeverMet: pairsWhoNeverMet,
+    maxMeetingsPerPair: maxMeetings,
+    avgMeetingsPerPair: avgMeetings.toFixed(2),
+    mixingQuality: ((meetingFrequencies.length / totalPossiblePairs) * 100).toFixed(1)
+  };
+}
+
 module.exports = {
   shuffle,
   distributeParticipants,
+  analyzeParticipantMixing,
   formatTime,
   formatDate,
   createParticipantMenu,

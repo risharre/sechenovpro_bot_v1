@@ -19,6 +19,7 @@ const {
 
 const {
   distributeParticipants,
+  analyzeParticipantMixing,
   createParticipantMenu,
   createAdminMenu,
   getStationInfo,
@@ -296,6 +297,55 @@ bot.command('status', async (ctx) => {
   } catch (error) {
     console.error('Error in /status command:', error);
     await ctx.reply('❌ Произошла ошибка при получении статуса.');
+  }
+});
+
+// Команда /analyze_mixing (для админов)
+bot.command('analyze_mixing', async (ctx) => {
+  try {
+    const username = ctx.from.username || '';
+    const isAdmin = await admins.isAdmin(username);
+
+    if (!isAdmin) {
+      await ctx.reply('❌ У вас нет прав для выполнения этой команды.');
+      return;
+    }
+
+    const allParticipants = await participants.getAll();
+    if (allParticipants.length === 0) {
+      await ctx.reply('❌ Нет зарегистрированных участников!');
+      return;
+    }
+
+    // Генерируем тестовое распределение
+    const distributions = distributeParticipants(allParticipants.length);
+    const analysis = analyzeParticipantMixing(distributions);
+
+    let message = `📊 *Анализ качества смешивания*\n\n`;
+    message += `👥 Участников: ${allParticipants.length}\n`;
+    message += `🔄 Ротаций: ${stations.length}\n\n`;
+    message += `📈 *Статистика встреч:*\n`;
+    message += `• Всего возможных пар: ${analysis.totalPairs}\n`;
+    message += `• Пар, которые встретятся: ${analysis.pairsWhoMet}\n`;
+    message += `• Пар, которые никогда не встретятся: ${analysis.pairsWhoNeverMet}\n\n`;
+    message += `🎯 *Качество смешивания:*\n`;
+    message += `• Максимум встреч одной пары: ${analysis.maxMeetingsPerPair}\n`;
+    message += `• Среднее встреч на пару: ${analysis.avgMeetingsPerPair}\n`;
+    message += `• Процент знакомств: ${analysis.mixingQuality}%\n\n`;
+    
+    if (analysis.mixingQuality >= 80) {
+      message += `✅ Отличное смешивание!`;
+    } else if (analysis.mixingQuality >= 60) {
+      message += `⚠️ Хорошее смешивание.`;
+    } else {
+      message += `❌ Плохое смешивание.`;
+    }
+
+    await ctx.replyWithMarkdown(message);
+
+  } catch (error) {
+    console.error('Error in /analyze_mixing command:', error);
+    await ctx.reply('❌ Произошла ошибка при анализе смешивания.');
   }
 });
 
