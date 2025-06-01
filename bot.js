@@ -152,7 +152,10 @@ bot.command('start_event', async (ctx) => {
       return;
     }
 
+    console.log('🔍 Starting event via command...');
+
     // Проверяем текущее состояние
+    console.log('🔍 Checking current state...');
     const state = await eventState.get();
     if (state && state.event_started) {
       await ctx.reply('⚠️ Мероприятие уже запущено!');
@@ -160,7 +163,9 @@ bot.command('start_event', async (ctx) => {
     }
 
     // Получаем всех участников
+    console.log('🔍 Getting all participants...');
     const allParticipants = await participants.getAll();
+    console.log(`🔍 Found ${allParticipants.length} participants`);
     if (allParticipants.length === 0) {
       await ctx.reply('❌ Нет зарегистрированных участников!');
       return;
@@ -169,32 +174,43 @@ bot.command('start_event', async (ctx) => {
     await ctx.reply(`🚀 Запускаю мероприятие...\n\n📊 Участников: ${allParticipants.length}`);
 
     // Очищаем старые ротации
+    console.log('🔍 Deleting old rotations...');
     await rotations.deleteAll();
 
     // Генерируем распределение
+    console.log('🔍 Generating participant distribution...');
     const distributions = distributeParticipants(allParticipants.length);
+    console.log('🔍 Distribution generated successfully');
 
     // Сохраняем ротации для каждого участника
+    console.log('🔍 Saving rotations for each participant...');
     for (let i = 0; i < allParticipants.length; i++) {
       const participant = allParticipants[i];
       const stationSequence = distributions[i];
+      console.log(`🔍 Saving rotations for participant ${i + 1}/${allParticipants.length} (ID: ${participant.id})`);
       await rotations.createForParticipant(participant.id, stationSequence);
     }
+    console.log('🔍 All rotations saved successfully');
 
     // Запускаем мероприятие
+    console.log('🔍 Starting event state...');
     await eventState.start();
 
     // Отправляем первые уведомления
+    console.log('🔍 Sending initial notifications...');
     await scheduler.sendInitialNotifications();
 
     // Запускаем планировщик
+    console.log('🔍 Starting scheduler...');
     await scheduler.start();
 
+    console.log('🔍 Event started successfully via command!');
     await ctx.reply(`✅ Мероприятие успешно запущено!\n\n🔄 Автоматическая ротация каждые ${CYCLE_TIME} минут.`);
 
   } catch (error) {
-    console.error('Error in /start_event command:', error);
-    await ctx.reply('❌ Произошла ошибка при запуске мероприятия.');
+    console.error('❌ Error in /start_event command:', error);
+    console.error('Error stack:', error.stack);
+    await ctx.reply(`❌ Произошла ошибка при запуске мероприятия: ${error.message}`);
   }
 });
 
@@ -483,7 +499,10 @@ bot.on('callback_query', async (ctx) => {
         }
 
         try {
+          console.log('🔍 Starting event process...');
+          
           // Проверяем текущее состояние
+          console.log('🔍 Checking current state...');
           const currentState = await eventState.get();
           if (currentState && currentState.event_started) {
             await ctx.reply('⚠️ Мероприятие уже запущено!');
@@ -491,7 +510,9 @@ bot.on('callback_query', async (ctx) => {
           }
 
           // Получаем всех участников
+          console.log('🔍 Getting all participants...');
           const allParticipants = await participants.getAll();
+          console.log(`🔍 Found ${allParticipants.length} participants`);
           if (allParticipants.length === 0) {
             await ctx.reply('❌ Нет зарегистрированных участников!');
             break;
@@ -500,31 +521,42 @@ bot.on('callback_query', async (ctx) => {
           await ctx.reply(`🚀 Запускаю мероприятие...\n\n📊 Участников: ${allParticipants.length}`);
 
           // Очищаем старые ротации
+          console.log('🔍 Deleting old rotations...');
           await rotations.deleteAll();
 
           // Генерируем распределение
+          console.log('🔍 Generating participant distribution...');
           const distributions = distributeParticipants(allParticipants.length);
+          console.log('🔍 Distribution generated successfully');
 
           // Сохраняем ротации для каждого участника
+          console.log('🔍 Saving rotations for each participant...');
           for (let i = 0; i < allParticipants.length; i++) {
             const participant = allParticipants[i];
             const stationSequence = distributions[i];
+            console.log(`🔍 Saving rotations for participant ${i + 1}/${allParticipants.length} (ID: ${participant.id})`);
             await rotations.createForParticipant(participant.id, stationSequence);
           }
+          console.log('🔍 All rotations saved successfully');
 
           // Запускаем мероприятие
+          console.log('🔍 Starting event state...');
           await eventState.start();
 
           // Отправляем первые уведомления
+          console.log('🔍 Sending initial notifications...');
           await scheduler.sendInitialNotifications();
 
           // Запускаем планировщик
+          console.log('🔍 Starting scheduler...');
           await scheduler.start();
 
+          console.log('🔍 Event started successfully!');
           await ctx.reply(`✅ Мероприятие успешно запущено!\n\n🔄 Автоматическая ротация каждые ${CYCLE_TIME} минут.`);
         } catch (error) {
-          console.error('Error in admin_start_event callback:', error);
-          await ctx.reply('❌ Произошла ошибка при запуске мероприятия.');
+          console.error('❌ Error in admin_start_event callback:', error);
+          console.error('Error stack:', error.stack);
+          await ctx.reply(`❌ Произошла ошибка при запуске мероприятия: ${error.message}`);
         }
         break;
 
