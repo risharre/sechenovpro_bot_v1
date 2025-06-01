@@ -1,7 +1,7 @@
 const cron = require('node-cron');
 const { participants, rotations, eventState } = require('./database');
 const { getStationInfo, createStationMessage, getTimeUntilNextRotation } = require('./utils');
-const { CYCLE_TIME, TRANSITION_TIME, WORK_TIME, TOTAL_ROTATIONS } = require('./stations');
+const { CYCLE_TIME, WARNING_TIME, WORK_TIME, TOTAL_ROTATIONS } = require('./stations');
 
 class EventScheduler {
   constructor(bot) {
@@ -105,12 +105,12 @@ class EventScheduler {
     console.log(`Rotation scheduler started (every ${CYCLE_TIME} minutes)`);
   }
 
-  // Планировать предупреждения через WORK_TIME минут после начала ротации (за 1 минуту до перехода)
+  // Планировать предупреждения через WARNING_TIME минут после начала ротации
   scheduleWarnings() {
-    // Предупреждения приходят через 4 минуты после начала каждой ротации
+    // Предупреждения приходят через 3 минуты после начала каждой ротации
     const cronExpression = `*/${CYCLE_TIME} * * * *`;
     
-    // Создаем задачу со смещением на WORK_TIME минут (4 минуты)
+    // Создаем задачу со смещением на WARNING_TIME минут (3 минуты)
     setTimeout(() => {
       this.warningJob = cron.schedule(cronExpression, async () => {
         try {
@@ -123,8 +123,8 @@ class EventScheduler {
         }
       });
       
-      console.log(`Warning scheduler started (${WORK_TIME} minutes after rotation start)`);
-    }, WORK_TIME * 60 * 1000); // 4 минуты в миллисекундах
+      console.log(`Warning scheduler started (${WARNING_TIME} minutes after rotation start)`);
+    }, WARNING_TIME * 60 * 1000); // 3 минуты в миллисекундах
   }
 
   // Обработать ротацию
@@ -266,7 +266,7 @@ class EventScheduler {
 
         const nextStation = getStationInfo(nextStationId);
         message = `⚠️ *Внимание!*\n\n`;
-        message += `Через ${TRANSITION_TIME} минуту переход на следующую станцию:\n\n`;
+        message += `Через 1 минуту переход на следующую станцию:\n\n`;
         message += `${nextStation.emoji} *${nextStation.name}*\n`;
         message += `_${nextStation.shortTitle}_\n\n`;
         message += `Пожалуйста, завершите текущую активность и приготовьтесь к переходу.`;

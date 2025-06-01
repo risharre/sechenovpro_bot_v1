@@ -12,11 +12,13 @@ function shuffle(array) {
 
 // Алгоритм распределения участников по станциям с учетом групп
 function distributeParticipants(participantCount) {
-  // У нас 3 группы станций, значит 3 ротации
-  const totalRotations = 3;
+  const { stations, TOTAL_ROTATIONS } = require('./stations');
+  const totalRotations = TOTAL_ROTATIONS;
+  
+  // Группируем станции по номерам групп
   const groups = {
-    '1': stations.filter(s => s.group === '1').map(s => s.id), // ['1.1', '1.2', '1.3']
-    '2': stations.filter(s => s.group === '2').map(s => s.id), // ['2.1', '2.2', '2.3'] 
+    '1': stations.filter(s => s.group === '1').map(s => s.id),  // ['1.1', '1.2', '1.3']
+    '2': stations.filter(s => s.group === '2').map(s => s.id),  // ['2.1', '2.2', '2.3']
     '3': stations.filter(s => s.group === '3').map(s => s.id)  // ['3.1', '3.2', '3.3']
   };
   
@@ -29,6 +31,10 @@ function distributeParticipants(participantCount) {
   for (let i = 0; i < participantCount; i++) {
     distributions[i] = new Array(totalRotations);
   }
+
+  /* 
+  // ОПЦИЯ 1: Фиксированный порядок групп (старая логика)
+  // Все участники идут: 1.x → 2.x → 3.x
   
   // Для каждой ротации (1, 2, 3) назначаем группу и распределяем участников
   for (let rotation = 0; rotation < totalRotations; rotation++) {
@@ -58,6 +64,60 @@ function distributeParticipants(participantCount) {
           const participantNumber = shuffledParticipants[participantIndex];
           distributions[participantNumber][rotation] = stationId;
           participantIndex++;
+        }
+      }
+    }
+  }
+  */
+
+  // ОПЦИЯ 2: Рандомизированный порядок групп для каждого участника
+  // Участники могут иметь маршруты: 3.x → 1.x → 2.x, 2.x → 3.x → 1.x и т.д.
+  
+  // Создаем рандомизированный порядок групп для каждого участника
+  const groupOrders = [];
+  const groupNumbers = ['1', '2', '3'];
+  
+  for (let i = 0; i < participantCount; i++) {
+    groupOrders[i] = shuffle([...groupNumbers]);
+  }
+  
+  // Для каждой ротации назначаем группы согласно индивидуальному порядку
+  for (let rotation = 0; rotation < totalRotations; rotation++) {
+    // Группируем участников по группам для этой ротации
+    const participantsByGroup = { '1': [], '2': [], '3': [] };
+    
+    for (let participant = 0; participant < participantCount; participant++) {
+      const groupForThisRotation = groupOrders[participant][rotation];
+      participantsByGroup[groupForThisRotation].push(participant);
+    }
+    
+    // Распределяем участников внутри каждой группы
+    for (const groupNumber of Object.keys(participantsByGroup)) {
+      const participantsInGroup = participantsByGroup[groupNumber];
+      const stationsInGroup = groups[groupNumber];
+      
+      if (participantsInGroup.length === 0) continue;
+      
+      // Перемешиваем участников в группе
+      const shuffledParticipants = shuffle([...participantsInGroup]);
+      
+      // Распределяем по станциям группы
+      const baseParticipantsPerStation = Math.floor(participantsInGroup.length / stationsInGroup.length);
+      const extraParticipants = participantsInGroup.length % stationsInGroup.length;
+      
+      let participantIndex = 0;
+      
+      for (let stationIndex = 0; stationIndex < stationsInGroup.length; stationIndex++) {
+        const stationId = stationsInGroup[stationIndex];
+        const participantsForThisStation = baseParticipantsPerStation + 
+          (stationIndex < extraParticipants ? 1 : 0);
+        
+        for (let i = 0; i < participantsForThisStation; i++) {
+          if (participantIndex < participantsInGroup.length) {
+            const participantNumber = shuffledParticipants[participantIndex];
+            distributions[participantNumber][rotation] = stationId;
+            participantIndex++;
+          }
         }
       }
     }

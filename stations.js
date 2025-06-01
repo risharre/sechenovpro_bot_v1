@@ -84,8 +84,8 @@ const networkingDescription = `Мы, ответственные за прогр�
 
 // Константы времени
 const WORK_TIME = 4; // минут на работу на станции
-const TRANSITION_TIME = 1; // минут на переход
-const CYCLE_TIME = WORK_TIME + TRANSITION_TIME; // полный цикл 5 минут
+const WARNING_TIME = 3; // минут до предупреждения о переходе (через 3 минуты после начала)
+const CYCLE_TIME = WORK_TIME; // полный цикл 4 минуты (без времени перехода)
 
 // Константы мероприятия
 const TOTAL_ROTATIONS = 3; // Количество ротаций = количество групп
@@ -95,7 +95,7 @@ module.exports = {
   stations,
   networkingDescription,
   WORK_TIME,
-  TRANSITION_TIME,
+  WARNING_TIME,
   CYCLE_TIME,
   TOTAL_ROTATIONS,
   GROUPS_COUNT
