@@ -1,7 +1,7 @@
 const cron = require('node-cron');
 const { participants, rotations, eventState } = require('./database');
 const { getStationInfo, createStationMessage, getTimeUntilNextRotation } = require('./utils');
-const { CYCLE_TIME, TRANSITION_TIME, stations } = require('./stations');
+const { CYCLE_TIME, TRANSITION_TIME, WORK_TIME, TOTAL_ROTATIONS } = require('./stations');
 
 class EventScheduler {
   constructor(bot) {
@@ -10,6 +10,7 @@ class EventScheduler {
     this.warningJob = null;
     this.notificationQueue = [];
     this.isProcessing = false;
+    this.lastNotificationTime = {};
   }
 
   // Запустить планировщик
@@ -46,6 +47,9 @@ class EventScheduler {
       this.warningJob.stop();
       this.warningJob = null;
     }
+    
+    // Очищаем историю уведомлений
+    this.lastNotificationTime = {};
   }
 
   // Приостановить планировщик (без потери прогресса)
@@ -84,7 +88,7 @@ class EventScheduler {
 
   // Планировать ротации каждые CYCLE_TIME минут
   scheduleRotations() {
-    // Запускаем каждые CYCLE_TIME минут
+    // Запускаем каждые CYCLE_TIME минут (каждые 5 минут)
     const cronExpression = `*/${CYCLE_TIME} * * * *`;
     
     this.rotationJob = cron.schedule(cronExpression, async () => {
@@ -92,7 +96,6 @@ class EventScheduler {
         await this.handleRotation();
       } catch (error) {
         console.error('Error in rotation handler:', error);
-        // Не крашим весь процесс, только логируем ошибку
         if (process.env.NODE_ENV === 'production') {
           console.log('Rotation handler error in production, continuing...');
         }
@@ -102,28 +105,26 @@ class EventScheduler {
     console.log(`Rotation scheduler started (every ${CYCLE_TIME} minutes)`);
   }
 
-  // Планировать предупреждения за TRANSITION_TIME минут до ротации
+  // Планировать предупреждения через WORK_TIME минут после начала ротации (за 1 минуту до перехода)
   scheduleWarnings() {
-    // Запускаем за TRANSITION_TIME минут до каждой ротации
-    const warningMinute = CYCLE_TIME - TRANSITION_TIME;
+    // Предупреждения приходят через 4 минуты после начала каждой ротации
     const cronExpression = `*/${CYCLE_TIME} * * * *`;
     
-    // Создаем задачу, которая будет запускаться со смещением
+    // Создаем задачу со смещением на WORK_TIME минут (4 минуты)
     setTimeout(() => {
       this.warningJob = cron.schedule(cronExpression, async () => {
         try {
           await this.handleWarning();
         } catch (error) {
           console.error('Error in warning handler:', error);
-          // Не крашим весь процесс, только логируем ошибку
           if (process.env.NODE_ENV === 'production') {
             console.log('Warning handler error in production, continuing...');
           }
         }
       });
       
-      console.log(`Warning scheduler started (${TRANSITION_TIME} minutes before rotation)`);
-    }, warningMinute * 60 * 1000);
+      console.log(`Warning scheduler started (${WORK_TIME} minutes after rotation start)`);
+    }, WORK_TIME * 60 * 1000); // 4 минуты в миллисекундах
   }
 
   // Обработать ротацию
@@ -142,10 +143,12 @@ class EventScheduler {
     const nextRotation = currentRotation + 1;
 
     // Если это была последняя ротация, завершаем мероприятие
-    if (currentRotation >= stations.length) {
+    if (currentRotation >= TOTAL_ROTATIONS) {
       await this.handleEventEnd();
       return;
     }
+
+    console.log(`Starting rotation ${nextRotation} of ${TOTAL_ROTATIONS}`);
 
     // Обновляем номер ротации
     await eventState.updateRotation(nextRotation);
@@ -164,10 +167,12 @@ class EventScheduler {
     const currentRotation = state.current_rotation;
     const nextRotation = currentRotation + 1;
 
-    // Если следующая ротация будет последней или мы уже на последней
-    if (nextRotation > stations.length) {
+    // Если следующая ротация будет превышать максимум или мы уже на последней
+    if (nextRotation > TOTAL_ROTATIONS) {
       return;
     }
+
+    console.log(`Sending warning for upcoming rotation ${nextRotation}`);
 
     // Отправляем предупреждения всем участникам
     await this.notifyAllParticipants(nextRotation, 'warning');
@@ -226,6 +231,22 @@ class EventScheduler {
   // Отправить одно уведомление
   async sendNotification({ participant, rotationNumber, type }) {
     try {
+      // Проверяем, не отправляли ли мы уже это уведомление
+      const notificationKey = `${participant.id}-${rotationNumber}-${type}`;
+      const now = Date.now();
+      
+      if (this.lastNotificationTime[notificationKey]) {
+        const timeSinceLastNotification = now - this.lastNotificationTime[notificationKey];
+        // Если прошло меньше 30 секунд с момента последней отправки, пропускаем
+        if (timeSinceLastNotification < 30000) {
+          console.log(`Skipping duplicate notification for participant ${participant.participant_number}`);
+          return;
+        }
+      }
+      
+      // Записываем время отправки
+      this.lastNotificationTime[notificationKey] = now;
+
       let message = '';
 
       if (type === 'rotation') {
@@ -234,19 +255,18 @@ class EventScheduler {
         if (!stationId) return;
 
         const station = getStationInfo(stationId);
-        message = createStationMessage(station, rotationNumber, stations.length);
+        message = createStationMessage(station, rotationNumber, TOTAL_ROTATIONS);
         message = `🔄 *Переход на новую станцию!*\n\n${message}`;
         
       } else if (type === 'warning') {
         // Предупреждение о скором переходе
-        const currentStationId = await rotations.getCurrentStation(participant.id, rotationNumber - 1);
         const nextStationId = await rotations.getCurrentStation(participant.id, rotationNumber);
         
         if (!nextStationId) return;
 
         const nextStation = getStationInfo(nextStationId);
         message = `⚠️ *Внимание!*\n\n`;
-        message += `Через ${TRANSITION_TIME} минуты переход на следующую станцию:\n\n`;
+        message += `Через ${TRANSITION_TIME} минуту переход на следующую станцию:\n\n`;
         message += `${nextStation.emoji} *${nextStation.name}*\n`;
         message += `_${nextStation.shortTitle}_\n\n`;
         message += `Пожалуйста, завершите текущую активность и приготовьтесь к переходу.`;
@@ -255,7 +275,7 @@ class EventScheduler {
         // Уведомление о завершении мероприятия
         message = `🎉 *Мероприятие завершено!*\n\n`;
         message += `Спасибо за участие в Sechenov Pro Network!\n\n`;
-        message += `Вы успешно прошли все 9 станций.\n\n`;
+        message += `Вы успешно прошли все ${TOTAL_ROTATIONS} ротации.\n\n`;
         message += `📝 Не забудьте заполнить форму обратной связи:\n`;
         message += process.env.CV_FORM_URL || 'https://forms.yandex.ru/cloud/67d6fd5090fa7be3dc213e5f/';
       }
@@ -266,6 +286,8 @@ class EventScheduler {
         message,
         { parse_mode: 'Markdown', disable_web_page_preview: true }
       );
+      
+      console.log(`Sent ${type} notification to participant ${participant.participant_number}`);
       
     } catch (error) {
       // Игнорируем ошибки отправки (например, если пользователь заблокировал бота)

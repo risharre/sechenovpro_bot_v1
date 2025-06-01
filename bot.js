@@ -16,7 +16,8 @@ const {
 const { 
   stations, 
   networkingDescription,
-  CYCLE_TIME 
+  CYCLE_TIME,
+  TOTAL_ROTATIONS 
 } = require('./stations');
 
 const {
@@ -332,7 +333,7 @@ bot.command('status', async (ctx) => {
     
     if (state && state.event_started) {
       message += `✅ Статус: Активно\n`;
-      message += `🔄 Текущая ротация: ${state.current_rotation} из ${stations.length}\n`;
+      message += `🔄 Текущая ротация: ${state.current_rotation} из ${TOTAL_ROTATIONS}\n`;
       
       const timeRemaining = getTimeUntilNextRotation(state.last_rotation_time, CYCLE_TIME);
       message += `⏱️ До следующей ротации: ${timeRemaining.formatted}\n`;
@@ -371,7 +372,7 @@ bot.command('analyze_mixing', async (ctx) => {
 
     let message = `📊 *Анализ качества смешивания*\n\n`;
     message += `👥 Участников: ${allParticipants.length}\n`;
-    message += `🔄 Ротаций: ${stations.length}\n\n`;
+    message += `🔄 Ротаций: ${TOTAL_ROTATIONS}\n\n`;
     message += `📈 *Статистика встреч:*\n`;
     message += `• Всего возможных пар: ${analysis.totalPairs}\n`;
     message += `• Пар, которые встретятся: ${analysis.pairsWhoMet}\n`;
@@ -471,7 +472,7 @@ bot.on('callback_query', async (ctx) => {
         if (currentStationId) {
           const station = getStationInfo(currentStationId);
           const timeRemaining = getTimeUntilNextRotation(state.last_rotation_time, CYCLE_TIME);
-          const message = createStationMessage(station, state.current_rotation, stations.length, timeRemaining);
+          const message = createStationMessage(station, state.current_rotation, TOTAL_ROTATIONS, timeRemaining);
           await ctx.replyWithMarkdown(message);
         } else {
           await ctx.reply('❌ Не удалось получить информацию о текущей станции.');
@@ -490,7 +491,7 @@ bot.on('callback_query', async (ctx) => {
         }
 
         const nextRotation = state.current_rotation + 1;
-        if (nextRotation > stations.length) {
+        if (nextRotation > TOTAL_ROTATIONS) {
           await ctx.reply('🏁 Это последняя станция! Мероприятие скоро завершится.');
           break;
         }
@@ -734,7 +735,7 @@ bot.on('callback_query', async (ctx) => {
               const timeRemaining = getTimeUntilNextRotation(currentState.last_rotation_time, CYCLE_TIME);
               statusMessage += `⏱️ До следующей ротации: ${timeRemaining.formatted}\n`;
             }
-            statusMessage += `🔄 Текущая ротация: ${currentState.current_rotation} из ${stations.length}\n`;
+            statusMessage += `🔄 Текущая ротация: ${currentState.current_rotation} из ${TOTAL_ROTATIONS}\n`;
           } else {
             statusMessage += `⏸️ Статус: Не запущено`;
           }

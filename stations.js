@@ -87,10 +87,16 @@ const WORK_TIME = 4; // минут на работу на станции
 const TRANSITION_TIME = 1; // минут на переход
 const CYCLE_TIME = WORK_TIME + TRANSITION_TIME; // полный цикл 5 минут
 
+// Константы мероприятия
+const TOTAL_ROTATIONS = 3; // Количество ротаций = количество групп
+const GROUPS_COUNT = 3; // Количество групп станций
+
 module.exports = {
   stations,
   networkingDescription,
   WORK_TIME,
   TRANSITION_TIME,
-  CYCLE_TIME
+  CYCLE_TIME,
+  TOTAL_ROTATIONS,
+  GROUPS_COUNT
 }; 

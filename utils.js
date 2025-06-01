@@ -12,38 +12,41 @@ function shuffle(array) {
 
 // Алгоритм распределения участников по станциям с учетом групп
 function distributeParticipants(participantCount) {
-  const stationIds = stations.map(s => s.id); // ['1.1', '1.2', '1.3', '2.1', '2.2', '2.3', '3.1', '3.2', '3.3']
+  // У нас 3 группы станций, значит 3 ротации
+  const totalRotations = 3;
   const groups = {
     '1': stations.filter(s => s.group === '1').map(s => s.id), // ['1.1', '1.2', '1.3']
-    '2': stations.filter(s => s.group === '2').map(s => s.id), // ['2.1', '2.2', '2.3']
+    '2': stations.filter(s => s.group === '2').map(s => s.id), // ['2.1', '2.2', '2.3'] 
     '3': stations.filter(s => s.group === '3').map(s => s.id)  // ['3.1', '3.2', '3.3']
   };
   
   const distributions = [];
-  const totalRotations = stationIds.length; // 9 ротаций
   
-  // Создаем массив всех участников (номера от 0 до participantCount-1)
+  // Создаем массив всех участников
   const allParticipants = Array.from({ length: participantCount }, (_, i) => i);
   
-  // Инициализируем массивы для каждого участника
+  // Инициализируем маршруты для каждого участника (3 ротации)
   for (let i = 0; i < participantCount; i++) {
     distributions[i] = new Array(totalRotations);
   }
   
-  // Для каждой ротации распределяем участников
+  // Для каждой ротации (1, 2, 3) назначаем группу и распределяем участников
   for (let rotation = 0; rotation < totalRotations; rotation++) {
-    // Перемешиваем участников случайным образом
+    const groupNumber = (rotation + 1).toString(); // '1', '2', '3'
+    const stationsInGroup = groups[groupNumber]; // станции текущей группы
+    
+    // Перемешиваем участников для этой ротации
     const shuffledParticipants = shuffle([...allParticipants]);
     
-    // Вычисляем, сколько людей должно быть на каждой станции
-    const baseParticipantsPerStation = Math.floor(participantCount / stationIds.length);
-    const extraParticipants = participantCount % stationIds.length;
+    // Вычисляем распределение по станциям группы
+    const baseParticipantsPerStation = Math.floor(participantCount / stationsInGroup.length);
+    const extraParticipants = participantCount % stationsInGroup.length;
     
     let participantIndex = 0;
     
-    // Распределяем участников по станциям для этой ротации
-    for (let stationIndex = 0; stationIndex < stationIds.length; stationIndex++) {
-      const stationId = stationIds[stationIndex];
+    // Распределяем участников по станциям внутри группы
+    for (let stationIndex = 0; stationIndex < stationsInGroup.length; stationIndex++) {
+      const stationId = stationsInGroup[stationIndex];
       
       // Определяем количество участников для этой станции
       const participantsForThisStation = baseParticipantsPerStation + 
@@ -51,66 +54,10 @@ function distributeParticipants(participantCount) {
       
       // Назначаем участников на эту станцию
       for (let i = 0; i < participantsForThisStation; i++) {
-        const participantNumber = shuffledParticipants[participantIndex];
-        
-        // Добавляем станцию в маршрут участника
-        distributions[participantNumber][rotation] = stationId;
-        
-        participantIndex++;
-      }
-    }
-  }
-  
-  // Проверяем и корректируем распределение, чтобы каждый участник посетил хотя бы одну станцию из каждой группы
-  for (let participant = 0; participant < participantCount; participant++) {
-    const visitedGroups = new Set();
-    const participantRoute = distributions[participant];
-    
-    // Проверяем, какие группы уже посетил участник
-    for (let rotation = 0; rotation < totalRotations; rotation++) {
-      const stationId = participantRoute[rotation];
-      const station = stations.find(s => s.id === stationId);
-      if (station) {
-        visitedGroups.add(station.group);
-      }
-    }
-    
-    // Если участник не посетил все группы, корректируем его маршрут
-    const missingGroups = ['1', '2', '3'].filter(group => !visitedGroups.has(group));
-    
-    if (missingGroups.length > 0) {
-      // Находим ротации, которые можно изменить для покрытия недостающих групп
-      let rotationsToChange = 0;
-      
-      for (const missingGroup of missingGroups) {
-        if (rotationsToChange < totalRotations) {
-          // Выбираем случайную станцию из недостающей группы
-          const groupStations = groups[missingGroup];
-          const randomStationFromGroup = groupStations[Math.floor(Math.random() * groupStations.length)];
-          
-          // Заменяем одну из станций в маршруте на станцию из недостающей группы
-          // Стараемся не менять станции из групп, которые ещё нужно посетить
-          let rotationToReplace = rotationsToChange;
-          while (rotationToReplace < totalRotations) {
-            const currentStationId = participantRoute[rotationToReplace];
-            const currentStation = stations.find(s => s.id === currentStationId);
-            
-            // Если текущая станция из группы, которая уже представлена в других ротациях
-            if (currentStation && visitedGroups.has(currentStation.group)) {
-              participantRoute[rotationToReplace] = randomStationFromGroup;
-              visitedGroups.add(missingGroup);
-              break;
-            }
-            rotationToReplace++;
-          }
-          
-          // Если не нашли подходящую ротацию, просто заменяем следующую доступную
-          if (rotationToReplace >= totalRotations && rotationsToChange < totalRotations) {
-            participantRoute[rotationsToChange] = randomStationFromGroup;
-            visitedGroups.add(missingGroup);
-          }
-          
-          rotationsToChange++;
+        if (participantIndex < participantCount) {
+          const participantNumber = shuffledParticipants[participantIndex];
+          distributions[participantNumber][rotation] = stationId;
+          participantIndex++;
         }
       }
     }
