@@ -1,4 +1,4 @@
--- Упрощенная миграция к системе с 3 ротациями
+-- Минимальная миграция к системе с 3 ротациями
 -- Выполните этот SQL в Supabase SQL Editor
 
 -- 1. Исправляем тип поля station_id (если нужно)
@@ -7,16 +7,15 @@ ALTER TABLE rotations ALTER COLUMN station_id TYPE TEXT;
 -- 2. Очищаем старые ротации
 DELETE FROM rotations;
 
--- 3. Сбрасываем состояние мероприятия (только существующие поля)
+-- 3. Сбрасываем основные поля состояния мероприятия
 UPDATE event_state SET 
     current_rotation = 0,
-    event_started = FALSE,
-    event_paused = FALSE,
-    last_rotation_time = NULL,
-    pause_time = NULL,
-    total_pause_duration = 0;
+    event_started = FALSE;
 
--- 4. Проверяем результат
+-- 4. Если поле event_paused существует, сбрасываем его (выполните отдельно при необходимости)
+-- UPDATE event_state SET event_paused = FALSE;
+
+-- 5. Проверяем результат
 SELECT 
     'rotations' as table_name,
     COUNT(*) as row_count,
