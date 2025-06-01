@@ -10,16 +10,28 @@ function shuffle(array) {
   return result;
 }
 
-// Алгоритм максимального смешивания участников по станциям
+// Алгоритм распределения участников по станциям с учетом групп
 function distributeParticipants(participantCount) {
-  const stationIds = stations.map(s => s.id); // ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I']
+  const stationIds = stations.map(s => s.id); // ['1.1', '1.2', '1.3', '2.1', '2.2', '2.3', '3.1', '3.2', '3.3']
+  const groups = {
+    '1': stations.filter(s => s.group === '1').map(s => s.id), // ['1.1', '1.2', '1.3']
+    '2': stations.filter(s => s.group === '2').map(s => s.id), // ['2.1', '2.2', '2.3']
+    '3': stations.filter(s => s.group === '3').map(s => s.id)  // ['3.1', '3.2', '3.3']
+  };
+  
   const distributions = [];
+  const totalRotations = stationIds.length; // 9 ротаций
   
   // Создаем массив всех участников (номера от 0 до participantCount-1)
   const allParticipants = Array.from({ length: participantCount }, (_, i) => i);
   
-  // Для каждой ротации генерируем полностью случайное распределение
-  for (let rotation = 0; rotation < stationIds.length; rotation++) {
+  // Инициализируем массивы для каждого участника
+  for (let i = 0; i < participantCount; i++) {
+    distributions[i] = new Array(totalRotations);
+  }
+  
+  // Для каждой ротации распределяем участников
+  for (let rotation = 0; rotation < totalRotations; rotation++) {
     // Перемешиваем участников случайным образом
     const shuffledParticipants = shuffle([...allParticipants]);
     
@@ -41,15 +53,65 @@ function distributeParticipants(participantCount) {
       for (let i = 0; i < participantsForThisStation; i++) {
         const participantNumber = shuffledParticipants[participantIndex];
         
-        // Если это первая ротация, создаем массив для этого участника
-        if (rotation === 0) {
-          distributions[participantNumber] = [];
-        }
-        
         // Добавляем станцию в маршрут участника
         distributions[participantNumber][rotation] = stationId;
         
         participantIndex++;
+      }
+    }
+  }
+  
+  // Проверяем и корректируем распределение, чтобы каждый участник посетил хотя бы одну станцию из каждой группы
+  for (let participant = 0; participant < participantCount; participant++) {
+    const visitedGroups = new Set();
+    const participantRoute = distributions[participant];
+    
+    // Проверяем, какие группы уже посетил участник
+    for (let rotation = 0; rotation < totalRotations; rotation++) {
+      const stationId = participantRoute[rotation];
+      const station = stations.find(s => s.id === stationId);
+      if (station) {
+        visitedGroups.add(station.group);
+      }
+    }
+    
+    // Если участник не посетил все группы, корректируем его маршрут
+    const missingGroups = ['1', '2', '3'].filter(group => !visitedGroups.has(group));
+    
+    if (missingGroups.length > 0) {
+      // Находим ротации, которые можно изменить для покрытия недостающих групп
+      let rotationsToChange = 0;
+      
+      for (const missingGroup of missingGroups) {
+        if (rotationsToChange < totalRotations) {
+          // Выбираем случайную станцию из недостающей группы
+          const groupStations = groups[missingGroup];
+          const randomStationFromGroup = groupStations[Math.floor(Math.random() * groupStations.length)];
+          
+          // Заменяем одну из станций в маршруте на станцию из недостающей группы
+          // Стараемся не менять станции из групп, которые ещё нужно посетить
+          let rotationToReplace = rotationsToChange;
+          while (rotationToReplace < totalRotations) {
+            const currentStationId = participantRoute[rotationToReplace];
+            const currentStation = stations.find(s => s.id === currentStationId);
+            
+            // Если текущая станция из группы, которая уже представлена в других ротациях
+            if (currentStation && visitedGroups.has(currentStation.group)) {
+              participantRoute[rotationToReplace] = randomStationFromGroup;
+              visitedGroups.add(missingGroup);
+              break;
+            }
+            rotationToReplace++;
+          }
+          
+          // Если не нашли подходящую ротацию, просто заменяем следующую доступную
+          if (rotationToReplace >= totalRotations && rotationsToChange < totalRotations) {
+            participantRoute[rotationsToChange] = randomStationFromGroup;
+            visitedGroups.add(missingGroup);
+          }
+          
+          rotationsToChange++;
+        }
       }
     }
   }
