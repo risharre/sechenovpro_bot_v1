@@ -1,7 +1,7 @@
 const cron = require('node-cron');
 const { participants, rotations, eventState } = require('./database');
 const { getStationInfo, createStationMessage, getTimeUntilNextRotation } = require('./utils');
-const { CYCLE_TIME, WARNING_TIME, WORK_TIME, TOTAL_ROTATIONS } = require('./stations');
+const { CYCLE_TIME, WARNING_TIME, TRANSITION_TIME, WORK_TIME, TOTAL_ROTATIONS } = require('./stations');
 
 class EventScheduler {
   constructor(bot) {
@@ -88,7 +88,7 @@ class EventScheduler {
 
   // Планировать ротации каждые CYCLE_TIME минут
   scheduleRotations() {
-    // Запускаем каждые CYCLE_TIME минут (каждые 5 минут)
+    // Запускаем каждые CYCLE_TIME минут (каждые 5 минут: 4 работа + 1 переход)
     const cronExpression = `*/${CYCLE_TIME} * * * *`;
     
     this.rotationJob = cron.schedule(cronExpression, async () => {
@@ -256,7 +256,15 @@ class EventScheduler {
 
         const station = getStationInfo(stationId);
         message = createStationMessage(station, rotationNumber, TOTAL_ROTATIONS);
-        message = `🔄 *Переход на новую станцию!*\n\n${message}`;
+        
+        if (rotationNumber === 1) {
+          // Первая ротация - просто переход на станцию
+          message = `🚀 *Мероприятие началось!*\n\n${message}`;
+        } else {
+          // Последующие ротации - переход + время на переход
+          message = `🔄 *Переход на новую станцию!*\n\n${message}`;
+          message += `\n⏱️ У вас есть ${TRANSITION_TIME} минута на переход между станциями.`;
+        }
         
       } else if (type === 'warning') {
         // Предупреждение о скором переходе
