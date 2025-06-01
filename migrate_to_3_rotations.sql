@@ -22,7 +22,11 @@ END $$;
 -- 2. ОЧИЩАЕМ СТАРЫЕ РОТАЦИИ (с 9 станциями)
 -- ВНИМАНИЕ: Это удалит все существующие маршруты участников!
 DELETE FROM rotations;
-RAISE NOTICE 'Все старые ротации удалены';
+
+DO $$ 
+BEGIN
+    RAISE NOTICE 'Все старые ротации удалены';
+END $$;
 
 -- 3. СБРАСЫВАЕМ СОСТОЯНИЕ МЕРОПРИЯТИЯ
 UPDATE event_state SET 
@@ -34,7 +38,10 @@ UPDATE event_state SET
     total_pause_duration = 0,
     paused_at = NULL;
 
-RAISE NOTICE 'Состояние мероприятия сброшено';
+DO $$ 
+BEGIN
+    RAISE NOTICE 'Состояние мероприятия сброшено';
+END $$;
 
 -- 4. ПРОВЕРЯЕМ РЕЗУЛЬТАТ
 SELECT 
