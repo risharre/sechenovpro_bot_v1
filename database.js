@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS admins (
 CREATE INDEX IF NOT EXISTS idx_rotations_participant_rotation ON rotations(participant_id, rotation_number);
 CREATE INDEX IF NOT EXISTS idx_participants_user_id ON participants(user_id);
 CREATE INDEX IF NOT EXISTS idx_admins_username ON admins(username);
+CREATE INDEX IF NOT EXISTS idx_rotations_station_id ON rotations(station_id);
 `;
 
 // Проверка подключения к базе данных

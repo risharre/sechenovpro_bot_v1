@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS rotations (
   id SERIAL PRIMARY KEY,
   participant_id INTEGER REFERENCES participants(id) ON DELETE CASCADE,
   rotation_number INTEGER NOT NULL,
-  station_id VARCHAR(3) NOT NULL,
+  station_id TEXT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(participant_id, rotation_number)
 );
@@ -222,6 +222,44 @@ node test_mixing.js
 ### Ошибки с базой данных
 - Проверьте подключение к Supabase
 - Убедитесь, что созданы все таблицы
+
+### ❌ Ошибка "value too long for type character varying(1)"
+
+**Проблема**: При запуске мероприятия возникает ошибка:
+```
+Error creating rotations: {
+  code: '22001',
+  message: 'value too long for type character varying(1)'
+}
+```
+
+**Причина**: В базе данных поле `station_id` в таблице `rotations` имеет неправильный тип `VARCHAR(1)`, который может хранить только один символ, а идентификаторы станций (например, "1.1", "2.3") содержат несколько символов.
+
+**Решение**: Выполните SQL миграцию в Supabase SQL Editor:
+
+1. Откройте Supabase Dashboard → SQL Editor
+2. Выполните следующий SQL:
+
+```sql
+-- Проверяем текущий тип колонки
+SELECT column_name, data_type, character_maximum_length 
+FROM information_schema.columns 
+WHERE table_name = 'rotations' AND column_name = 'station_id';
+
+-- Исправляем тип колонки
+ALTER TABLE rotations 
+ALTER COLUMN station_id TYPE TEXT;
+
+-- Проверяем, что изменение применилось  
+SELECT column_name, data_type, character_maximum_length 
+FROM information_schema.columns 
+WHERE table_name = 'rotations' AND column_name = 'station_id';
+```
+
+3. После выполнения миграции перезапустите бот в Railway
+4. Проверьте работу командой `/start_event`
+
+**Автоматический скрипт**: В репозитории есть готовый файл `fix_station_id_column.sql` с необходимыми командами.
 
 ### Участники не получают уведомления
 - Проверьте, что мероприятие запущено (`/status`)
