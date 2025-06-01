@@ -204,8 +204,15 @@ bot.command('start_event', async (ctx) => {
     console.log('🔍 Starting scheduler...');
     await scheduler.start();
 
-    console.log('🔍 Event started successfully via command!');
+    console.log('🔍 Event started successfully!');
     await ctx.reply(`✅ Мероприятие успешно запущено!\n\n🔄 Автоматическая ротация каждые ${CYCLE_TIME} минут.`);
+    
+    // Показываем обновленное админское меню
+    const updatedState = await eventState.get();
+    await ctx.replyWithMarkdown(
+      `👨‍�� *Админ-панель*\n\n✅ Мероприятие активно`,
+      { reply_markup: createAdminMenu(updatedState) }
+    );
 
   } catch (error) {
     console.error('❌ Error in /start_event command:', error);
@@ -390,6 +397,42 @@ bot.command('analyze_mixing', async (ctx) => {
   }
 });
 
+// Команда /admin_menu (для админов) - быстрый доступ к админской панели
+bot.command('admin_menu', async (ctx) => {
+  try {
+    const username = ctx.from.username || '';
+    const isAdmin = await admins.isAdmin(username);
+
+    if (!isAdmin) {
+      await ctx.reply('❌ У вас нет прав для выполнения этой команды.');
+      return;
+    }
+
+    const currentState = await eventState.get();
+    const participantCount = await participants.getCount();
+    
+    let statusText = '';
+    if (currentState && currentState.event_started) {
+      if (currentState.event_paused) {
+        statusText = '⏸️ Мероприятие приостановлено';
+      } else {
+        statusText = '✅ Мероприятие активно';
+      }
+    } else {
+      statusText = '⏸️ Мероприятие не запущено';
+    }
+
+    await ctx.replyWithMarkdown(
+      `👨‍💼 *Админ-панель*\n\n${statusText}\n👥 Участников: ${participantCount}`,
+      { reply_markup: createAdminMenu(currentState) }
+    );
+
+  } catch (error) {
+    console.error('Error in /admin_menu command:', error);
+    await ctx.reply('❌ Произошла ошибка при получении админского меню.');
+  }
+});
+
 // Обработчик callback queries
 bot.on('callback_query', async (ctx) => {
   try {
@@ -553,6 +596,13 @@ bot.on('callback_query', async (ctx) => {
 
           console.log('🔍 Event started successfully!');
           await ctx.reply(`✅ Мероприятие успешно запущено!\n\n🔄 Автоматическая ротация каждые ${CYCLE_TIME} минут.`);
+          
+          // Показываем обновленное админское меню
+          const updatedState = await eventState.get();
+          await ctx.replyWithMarkdown(
+            `👨‍💼 *Админ-панель*\n\n✅ Мероприятие активно`,
+            { reply_markup: createAdminMenu(updatedState) }
+          );
         } catch (error) {
           console.error('❌ Error in admin_start_event callback:', error);
           console.error('Error stack:', error.stack);
@@ -584,6 +634,13 @@ bot.on('callback_query', async (ctx) => {
           scheduler.pause();
 
           await ctx.reply('⏸️ Мероприятие приостановлено.\n\n💡 Прогресс участников сохранен. Используйте "Возобновить" для продолжения.');
+          
+          // Показываем обновленное админское меню
+          const updatedState = await eventState.get();
+          await ctx.replyWithMarkdown(
+            `👨‍💼 *Админ-панель*\n\n⏸️ Мероприятие приостановлено`,
+            { reply_markup: createAdminMenu(updatedState) }
+          );
         } catch (error) {
           console.error('Error in admin_pause_event callback:', error);
           await ctx.reply('❌ Произошла ошибка при приостановке мероприятия.');
@@ -615,6 +672,13 @@ bot.on('callback_query', async (ctx) => {
 
           const pauseDuration = Math.floor((currentState.total_pause_duration || 0) / 60);
           await ctx.reply(`▶️ Мероприятие возобновлено!\n\n⏱️ Общее время паузы: ${pauseDuration} мин.\n🔄 Автоматическая ротация продолжается.`);
+          
+          // Показываем обновленное админское меню
+          const updatedState = await eventState.get();
+          await ctx.replyWithMarkdown(
+            `👨‍💼 *Админ-панель*\n\n✅ Мероприятие активно`,
+            { reply_markup: createAdminMenu(updatedState) }
+          );
         } catch (error) {
           console.error('Error in admin_resume_event callback:', error);
           await ctx.reply('❌ Произошла ошибка при возобновлении мероприятия.');
@@ -633,6 +697,13 @@ bot.on('callback_query', async (ctx) => {
           await eventState.stop();
           scheduler.stop();
           await ctx.reply('⏹️ Мероприятие остановлено.\n\n⚠️ При перезапуске участники получат новые маршруты.');
+          
+          // Показываем обновленное админское меню
+          const updatedState = await eventState.get();
+          await ctx.replyWithMarkdown(
+            `👨‍💼 *Админ-панель*\n\n⏹️ Мероприятие остановлено`,
+            { reply_markup: createAdminMenu(updatedState) }
+          );
         } catch (error) {
           console.error('Error in admin_stop_event callback:', error);
           await ctx.reply('❌ Произошла ошибка при остановке мероприятия.');
