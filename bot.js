@@ -36,9 +36,9 @@ const EventScheduler = require('./scheduler');
 
 // Отладочная информация для токена
 console.log('🔍 Bot token check:');
-console.log(`   Token exists: ${!!process.env.BOT_TOKEN}`);
-console.log(`   Token length: ${process.env.BOT_TOKEN ? process.env.BOT_TOKEN.length : 0}`);
-console.log(`   Token prefix: ${process.env.BOT_TOKEN ? process.env.BOT_TOKEN.substring(0, 15) + '...' : 'undefined'}`);
+console.log(`   BOT_TOKEN exists: ${!!process.env.BOT_TOKEN}`);
+console.log(`   BOT_TOKEN length: ${process.env.BOT_TOKEN ? process.env.BOT_TOKEN.length : 0}`);
+console.log(`   BOT_TOKEN prefix: ${process.env.BOT_TOKEN ? process.env.BOT_TOKEN.substring(0, 15) + '...' : 'undefined'}`);
 console.log(`   Token suffix: ${process.env.BOT_TOKEN ? '...' + process.env.BOT_TOKEN.substring(process.env.BOT_TOKEN.length - 10) : 'undefined'}`);
 console.log(`   NODE_ENV: ${process.env.NODE_ENV}`);
 console.log(`   RAILWAY env: ${process.env.RAILWAY_ENVIRONMENT || 'not set'}`);
@@ -49,8 +49,12 @@ if (process.env.BOT_TOKEN) {
   console.log(`   Token matches expected: ${process.env.BOT_TOKEN === expectedToken}`);
 }
 
+// ОБХОДИМ ПРОБЛЕМУ RAILWAY - используем альтернативную переменную
+const botToken = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN;
+console.log(`🔄 Using token from: ${process.env.TELEGRAM_BOT_TOKEN ? 'TELEGRAM_BOT_TOKEN' : 'BOT_TOKEN'}`);
+
 // Инициализация бота
-const bot = new Telegraf(process.env.BOT_TOKEN);
+const bot = new Telegraf(botToken);
 const scheduler = new EventScheduler(bot);
 
 // Middleware для сессий
