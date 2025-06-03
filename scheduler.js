@@ -107,11 +107,13 @@ class EventScheduler {
 
   // Планировать предупреждения через WARNING_TIME минут после начала ротации
   scheduleWarnings() {
-    // Предупреждения приходят через 3 минуты после начала каждой ротации
-    const cronExpression = `*/${CYCLE_TIME} * * * *`;
+    // Предупреждения должны приходить за 1 минуту до следующей ротации
+    // Если ротации каждые 5 минут (0, 5, 10...), то предупреждения на 4, 9, 14... минуте
+    const warningOffset = CYCLE_TIME - TRANSITION_TIME; // 4 минуты после начала ротации = за 1 минуту до конца
     
-    // Создаем задачу со смещением на WARNING_TIME минут (3 минуты)
     setTimeout(() => {
+      const cronExpression = `*/${CYCLE_TIME} * * * *`;
+      
       this.warningJob = cron.schedule(cronExpression, async () => {
         try {
           await this.handleWarning();
@@ -123,8 +125,8 @@ class EventScheduler {
         }
       });
       
-      console.log(`Warning scheduler started (${WARNING_TIME} minutes after rotation start)`);
-    }, WARNING_TIME * 60 * 1000); // 3 минуты в миллисекундах
+      console.log(`Warning scheduler started (${TRANSITION_TIME} minute before next rotation)`);
+    }, warningOffset * 60 * 1000); // 4 минуты в миллисекундах
   }
 
   // Обработать ротацию
@@ -274,7 +276,7 @@ class EventScheduler {
 
         const nextStation = getStationInfo(nextStationId);
         message = `⚠️ *Внимание!*\n\n`;
-        message += `Через 1 минуту переход на следующую станцию:\n\n`;
+        message += `Через ${TRANSITION_TIME} минуту переход на следующую станцию:\n\n`;
         message += `${nextStation.emoji} *${nextStation.name}*\n`;
         message += `_${nextStation.shortTitle}_\n\n`;
         message += `Пожалуйста, завершите текущую активность и приготовьтесь к переходу.`;
