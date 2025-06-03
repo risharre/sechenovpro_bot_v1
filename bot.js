@@ -862,6 +862,20 @@ process.once('SIGTERM', () => gracefulShutdown('SIGTERM'));
 // Запускаем бота
 async function start() {
   try {
+    // КРИТИЧЕСКАЯ ОТЛАДКА ТОКЕНА - ДОЛЖНО БЫТЬ ВИДНО В ЛОГАХ!
+    console.log('🚨 CRITICAL TOKEN DEBUG:');
+    console.log(`   BOT_TOKEN exists: ${!!process.env.BOT_TOKEN}`);
+    console.log(`   BOT_TOKEN length: ${process.env.BOT_TOKEN ? process.env.BOT_TOKEN.length : 0}`);
+    if (process.env.BOT_TOKEN) {
+      console.log(`   BOT_TOKEN first 20 chars: ${process.env.BOT_TOKEN.substring(0, 20)}...`);
+      console.log(`   BOT_TOKEN last 10 chars: ...${process.env.BOT_TOKEN.substring(process.env.BOT_TOKEN.length - 10)}`);
+      const expectedToken = '7450494077:AAF2v6iWkOsVUSAxW2KEJ6sNc3rn0tROyXI';
+      console.log(`   TOKEN IS CORRECT: ${process.env.BOT_TOKEN === expectedToken}`);
+    } else {
+      console.log('   BOT_TOKEN is undefined/null/empty!');
+    }
+    console.log('🚨 END CRITICAL TOKEN DEBUG');
+    
     await initDatabase();
     
     // Удаляем существующий webhook перед запуском в режиме polling
