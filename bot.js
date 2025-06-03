@@ -819,13 +819,19 @@ const gracefulShutdown = (signal) => {
   
   scheduler.stop();
   
-  bot.stop(signal).then(() => {
-    console.log('Bot stopped gracefully');
+  // Безопасно останавливаем бота
+  if (bot && typeof bot.stop === 'function') {
+    bot.stop(signal).then(() => {
+      console.log('Bot stopped gracefully');
+      process.exit(0);
+    }).catch((error) => {
+      console.error('Error during shutdown:', error);
+      process.exit(1);
+    });
+  } else {
+    console.log('Bot not initialized, exiting...');
     process.exit(0);
-  }).catch((error) => {
-    console.error('Error during shutdown:', error);
-    process.exit(1);
-  });
+  }
   
   // Force exit after 10 seconds
   setTimeout(() => {
@@ -842,6 +848,14 @@ process.once('SIGTERM', () => gracefulShutdown('SIGTERM'));
 async function start() {
   try {
     await initDatabase();
+    
+    // Удаляем существующий webhook перед запуском в режиме polling
+    try {
+      await bot.telegram.deleteWebhook();
+      console.log('Existing webhook deleted successfully');
+    } catch (webhookError) {
+      console.log('No webhook to delete or error deleting webhook:', webhookError.message);
+    }
     
     // Восстанавливаем планировщик, если мероприятие было запущено
     const state = await eventState.get();
