@@ -20,7 +20,7 @@
 В разделе **Variables** добавьте:
 
 ```bash
-BOT_TOKEN=7450494077:AAEPS_BmcfBgwtBEdlVKmarFNc4JT2cJ2y4
+BOT_TOKEN=7450494077:AAF2v6iWkOsVUSAxW2KEJ6sNc3rn0tROyXI
 ADMIN_USERNAMES=lkobets,risharre
 SUPABASE_URL=ваш_supabase_url
 SUPABASE_KEY=ваш_supabase_key
