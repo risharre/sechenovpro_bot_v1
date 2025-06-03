@@ -34,6 +34,12 @@ const {
 
 const EventScheduler = require('./scheduler');
 
+// Отладочная информация для токена
+console.log('🔍 Bot token check:');
+console.log(`   Token exists: ${!!process.env.BOT_TOKEN}`);
+console.log(`   Token length: ${process.env.BOT_TOKEN ? process.env.BOT_TOKEN.length : 0}`);
+console.log(`   Token prefix: ${process.env.BOT_TOKEN ? process.env.BOT_TOKEN.substring(0, 15) + '...' : 'undefined'}`);
+
 // Инициализация бота
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const scheduler = new EventScheduler(bot);
