@@ -39,6 +39,15 @@ console.log('🔍 Bot token check:');
 console.log(`   Token exists: ${!!process.env.BOT_TOKEN}`);
 console.log(`   Token length: ${process.env.BOT_TOKEN ? process.env.BOT_TOKEN.length : 0}`);
 console.log(`   Token prefix: ${process.env.BOT_TOKEN ? process.env.BOT_TOKEN.substring(0, 15) + '...' : 'undefined'}`);
+console.log(`   Token suffix: ${process.env.BOT_TOKEN ? '...' + process.env.BOT_TOKEN.substring(process.env.BOT_TOKEN.length - 10) : 'undefined'}`);
+console.log(`   NODE_ENV: ${process.env.NODE_ENV}`);
+console.log(`   RAILWAY env: ${process.env.RAILWAY_ENVIRONMENT || 'not set'}`);
+
+// Проверяем что токен правильный
+if (process.env.BOT_TOKEN) {
+  const expectedToken = '7450494077:AAF2v6iWkOsVUSAxW2KEJ6sNc3rn0tROyXI';
+  console.log(`   Token matches expected: ${process.env.BOT_TOKEN === expectedToken}`);
+}
 
 // Инициализация бота
 const bot = new Telegraf(process.env.BOT_TOKEN);
