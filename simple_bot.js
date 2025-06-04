@@ -114,16 +114,27 @@ bot.command('distribute', async (ctx) => {
     // Перемешиваем участников случайным образом
     const shuffled = completedParticipants.sort(() => Math.random() - 0.5);
     
-    // Распределяем по командам (не более 5 человек в команде)
-    const teamsCount = Math.min(16, Math.ceil(shuffled.length / 5));
+    // Распределяем по командам (строго не более 5 человек в команде)
+    const maxTeamSize = 5;
+    const teamsCount = Math.ceil(shuffled.length / maxTeamSize);
+    
     let teamAssignments = [];
+    let currentTeam = 1;
+    let currentTeamSize = 0;
 
     for (let i = 0; i < shuffled.length; i++) {
-      const teamNumber = (i % teamsCount) + 1;
+      // Если текущая команда заполнена (5 человек) и это не последняя команда
+      if (currentTeamSize >= maxTeamSize && currentTeam < teamsCount) {
+        currentTeam++;
+        currentTeamSize = 0;
+      }
+      
       teamAssignments.push({
         participantId: shuffled[i].id,
-        teamNumber: teamNumber
+        teamNumber: currentTeam
       });
+      
+      currentTeamSize++;
     }
     
     // Сохраняем распределение в базу
@@ -154,12 +165,12 @@ bot.command('distribute', async (ctx) => {
 
     let statsMessage = `✅ Распределение завершено!\n\n📊 Статистика:\n`;
     statsMessage += `• Всего участников: ${shuffled.length}\n`;
-    statsMessage += `• Команд создано: ${teamsCount}\n`;
+    statsMessage += `• Команд создано: ${currentTeam}\n`;
     statsMessage += `• Участников распределено: ${teamAssignments.length}\n`;
     statsMessage += `• Уведомлений отправлено: ${notificationsSent}\n\n`;
     statsMessage += `👥 Состав команд:\n`;
     
-    for (let i = 1; i <= teamsCount; i++) {
+    for (let i = 1; i <= currentTeam; i++) {
       statsMessage += `Команда ${i}: ${teamStats[i] || 0} чел.\n`;
     }
 
